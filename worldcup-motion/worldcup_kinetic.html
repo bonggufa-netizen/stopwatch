@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WORLD CUP — Kinetic Bauhaus 9:16</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #141414; color: #eee; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    font-family: "Segoe UI", "Malgun Gothic", sans-serif; padding: 16px;
+  }
+  canvas { height: min(82vh, 1920px); aspect-ratio: 9 / 16; background: #F2EBDD; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  button {
+    font: 600 14px inherit; padding: 8px 14px; border: 0; border-radius: 6px; cursor: pointer;
+    background: #2a2a2a; color: #eee;
+  }
+  button:hover { background: #3a3a3a; }
+  button.primary { background: #E63022; color: #fff; }
+  button.primary:hover { background: #ff4433; }
+  button:disabled { opacity: .5; cursor: default; }
+  input[type=range] { width: 240px; accent-color: #F7C100; }
+  #time { font: 13px ui-monospace, Consolas, monospace; width: 56px; text-align: right; }
+  #status { font-size: 13px; color: #aaa; min-height: 18px; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<div class="bar">
+  <button id="play">⏸ 일시정지</button>
+  <button id="restart">⟲ 처음부터</button>
+  <input id="scrub" type="range" min="0" max="10" step="0.01" value="0">
+  <span id="time">0.00s</span>
+  <button id="rec" class="primary">● 영상으로 저장 (10초)</button>
+</div>
+<div id="status"></div>
+
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const W = 1080, H = 1920, DUR = 10, TAU = Math.PI * 2;
+
+// Bauhaus palette
+const RED = '#E63022', YELLOW = '#F7C100', BLUE = '#1F4E9E', BLACK = '#111111', CREAM = '#F2EBDD', WHITE = '#FFFFFF';
+const FONT = '"Arial Black", "Helvetica Neue", Arial, "Malgun Gothic", sans-serif';
+const KFONT = '"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
+
+// ---------- helpers ----------
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, p) => a + (b - a) * p;
+const outCubic = p => 1 - Math.pow(1 - p, 3);
+const inCubic = p => p * p * p;
+const inOutCubic = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+const outExpo = p => p >= 1 ? 1 : 1 - Math.pow(2, -10 * p);
+const outBack = p => { const c1 = 2.2, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
+const rnd = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const noise = (t, s) => Math.sin(t * 91.7 + s) * 0.6 + Math.sin(t * 53.3 + s * 2.1) * 0.4;
+
+function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
+function circle(x, y, r, c) { if (r <= 0) return; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fillStyle = c; ctx.fill(); }
+function ring(x, y, r, lw, c) { if (r <= 0) return; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.lineWidth = lw; ctx.strokeStyle = c; ctx.stroke(); }
+function tri(cx, cy, r, rot, c) {
+  if (r <= 0) return;
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) { const a = rot - Math.PI / 2 + i * TAU / 3; ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+  ctx.closePath(); ctx.fillStyle = c; ctx.fill();
+}
+function square(cx, cy, s, rot, c) {
+  if (s <= 0) return;
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot); rect(-s / 2, -s / 2, s, s, c); ctx.restore();
+}
+function txt(s, x, y, size, color, o = {}) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(o.rot || 0); ctx.scale(o.sx ?? o.s ?? 1, o.sy ?? o.s ?? 1);
+  ctx.globalAlpha *= (o.a ?? 1);
+  ctx.font = `${o.weight || 900} ${size}px ${o.font || FONT}`;
+  ctx.textAlign = o.align || 'center'; ctx.textBaseline = o.base || 'middle';
+  if (o.ls) ctx.letterSpacing = o.ls + 'px';
+  if (o.shadow) { ctx.fillStyle = o.shadow; ctx.fillText(s, o.sd || 16, o.sd || 16); }
+  ctx.fillStyle = color; ctx.fillText(s, 0, 0);
+  ctx.restore();
+}
+// per-letter kinetic text
+function letters(str, cx, y, size, color, f, font = FONT) {
+  const chars = [...str];
+  ctx.font = `900 ${size}px ${font}`;
+  const ws = chars.map(ch => ctx.measureText(ch).width);
+  let x = cx - ws.reduce((a, b) => a + b, 0) / 2;
+  chars.forEach((ch, i) => {
+    const o = f(i) || {};
+    if (o.a !== 0) {
+      ctx.save();
+      ctx.globalAlpha = o.a ?? 1;
+      ctx.translate(x + ws[i] / 2 + (o.dx || 0), y + (o.dy || 0));
+      ctx.rotate(o.r || 0); ctx.scale(o.s ?? 1, o.s ?? 1);
+      ctx.font = `900 ${size}px ${font}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (o.shadow) { ctx.fillStyle = o.shadow; ctx.fillText(ch, 14, 14); }
+      ctx.fillStyle = o.c || color; ctx.fillText(ch, 0, 0);
+      ctx.restore();
+    }
+    x += ws[i];
+  });
+}
+// Bauhaus quartered ball
+function ball(x, y, r, rot) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+  const cols = [BLACK, WHITE, RED, WHITE];
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, r, i * Math.PI / 2, (i + 1) * Math.PI / 2); ctx.closePath();
+    ctx.fillStyle = cols[i]; ctx.fill();
+  }
+  ring(0, 0, r, r * 0.09, BLACK);
+  ctx.restore();
+}
+function shake(amp, t, seed = 0) { ctx.translate(noise(t, seed) * amp, noise(t, seed + 7.3) * amp); }
+
+// ---------- SCENE 1 : FEEL THE FIRE (0.0 – 1.6) ----------
+function S1(t) {
+  rect(0, 0, W, H, CREAM);
+  const a = outExpo(prog(t, 0, 0.45));
+  rect(-W * 0.62 * (1 - a), 0, W * 0.62, H * 0.30, RED);
+  circle(W * 0.84, H * 0.87, 470 * outBack(prog(t, 0.1, 0.6)), BLUE);
+  tri(W * 0.82, H * 0.15, 190 * outBack(prog(t, 0.2, 0.65)), t * 1.6, YELLOW);
+  const d = outExpo(prog(t, 0.25, 0.6));
+  rect(0, H * 0.613, W * d, 26, BLACK);
+  // tiny labels
+  txt('NO.26', W * 0.62 + 40 - W * 0.62 * (1 - a), 70, 44, BLACK, { align: 'left', ls: 6 });
+  txt('THE WORLD IS WATCHING', 70, H - 90, 40, BLACK, { align: 'left', ls: 8, a: prog(t, 0.6, 0.9) });
+
+  const lines = [['FEEL', 760, BLACK], ['THE', 1040, BLACK], ['FIRE', 1330, RED]];
+  lines.forEach(([s, y, c], i) => {
+    const st = 0.28 + i * 0.17, p = prog(t, st, st + 0.38);
+    if (p <= 0) return;
+    const sc = lerp(2.6, 1, outBack(p));
+    txt(s, 70, y, 320, c, { align: 'left', s: sc, rot: (1 - outCubic(p)) * -0.25, shadow: i === 2 ? BLACK : null, sd: 14 });
+  });
+  // transition: yellow panel up
+  const w = outCubic(prog(t, 1.35, 1.6));
+  if (w > 0) rect(0, H * (1 - w), W, H, YELLOW);
+}
+
+// ---------- SCENE 2 : WORLD / CUP / 2026 (1.6 – 3.0) ----------
+function S2(t) {
+  rect(0, 0, W, H, YELLOW);
+  circle(W / 2, 0, 430 * outBack(prog(t, 0, 0.4)), BLACK);
+  txt('WELCOME TO THE', W / 2, 250, 52, YELLOW, { ls: 10, a: prog(t, 0.15, 0.35) });
+
+  letters('WORLD', W / 2, 760, 236, BLACK, i => {
+    const st = 0.05 + i * 0.06, p = prog(t, st, st + 0.35);
+    if (p <= 0) return { a: 0 };
+    return { dy: -560 * (1 - outBack(p)), r: (i % 2 ? 1 : -1) * 0.6 * (1 - outCubic(p)) };
+  });
+  const lw = outExpo(prog(t, 0.3, 0.6));
+  rect(W / 2 - 470 * lw, 905, 940 * lw, 14, BLACK);
+
+  // dashed rotating ring
+  ctx.save(); ctx.translate(W / 2, 1180); ctx.rotate(t * 2.2);
+  ctx.setLineDash([40, 28]); ring(0, 0, 400 * outBack(prog(t, 0.3, 0.7)), 14, BLACK); ctx.restore();
+
+  const sq = outBack(prog(t, 0.35, 0.7)), rot = (1 - outCubic(prog(t, 0.35, 0.85))) * Math.PI * 0.75;
+  square(W / 2, 1180, 540 * sq, rot, RED);
+  if (sq > 0) txt('CUP', W / 2, 1195, 220, WHITE, { rot, s: sq });
+
+  const p2 = outExpo(prog(t, 0.6, 0.95));
+  if (p2 > 0) letters('2026', W / 2 + (1 - p2) * 1200, 1650, 270, BLUE, i => {
+    const b = prog(t, 0.85 + i * 0.05, 1.05 + i * 0.05);
+    return { dy: -Math.sin(b * Math.PI) * 70 };
+  });
+  // iris to blue
+  const ir = inCubic(prog(t, 1.18, 1.4));
+  circle(W / 2, 1180, 2300 * ir, BLUE);
+}
+
+// ---------- SCENE 3 : 3 · 2 · 1 (3.0 – 4.4) ----------
+const COUNT = [
+  { bg: BLUE, shape: 'tri', sc: YELLOW, num: '3', nc: CREAM, lc: CREAM },
+  { bg: RED, shape: 'circ', sc: BLUE, num: '2', nc: YELLOW, lc: CREAM },
+  { bg: YELLOW, shape: 'sq', sc: RED, num: '1', nc: BLACK, lc: BLACK },
+];
+function S3(t) {
+  const beat = 1.4 / 3, k = Math.min(2, Math.floor(t / beat)), lp = t - k * beat, c = COUNT[k];
+  rect(0, 0, W, H, c.bg);
+  ctx.save();
+  shake(14 * Math.exp(-lp * 10), t, k);
+  const sp = outBack(prog(lp, 0, 0.22));
+  if (c.shape === 'tri') tri(W / 2, H / 2 + 40, 640 * sp, lp * 1.8, c.sc);
+  if (c.shape === 'circ') circle(W / 2, H / 2, 520 * sp, c.sc);
+  if (c.shape === 'sq') square(W / 2, H / 2, 860 * sp, -lp * 1.2 + (1 - sp) * 0.8, c.sc);
+  // shockwave rings
+  for (let j = 0; j < 2; j++) {
+    const rp = prog(lp, j * 0.08, 0.42 + j * 0.08);
+    if (rp > 0 && rp < 1) { ctx.globalAlpha = 1 - rp; ring(W / 2, H / 2, 300 + rp * 1100, 30 * (1 - rp) + 4, BLACK); ctx.globalAlpha = 1; }
+  }
+  const np = outExpo(prog(lp, 0, 0.2));
+  txt(c.num, W / 2, H / 2 + 60, 1050, c.nc, { s: lerp(1.9, 1, np), rot: (1 - np) * (k % 2 ? 0.3 : -0.3), shadow: BLACK, sd: 22 });
+  ctx.restore();
+  txt('KICK-OFF IN', W / 2, 200, 64, c.lc, { ls: 14 });
+  txt(`0${c.num}`, 70, H - 120, 90, c.lc, { align: 'left' });
+  rect(W - 70 - 300, H - 130, 300 * (1 - lp / beat), 18, c.lc);
+  // transition: cream bars drop
+  for (let i = 0; i < 6; i++) {
+    const p = outCubic(prog(t, 1.2 + i * 0.015, 1.32 + i * 0.015));
+    if (p > 0) rect(i * W / 6, 0, W / 6 + 1, H * p, CREAM);
+  }
+}
+
+// ---------- SCENE 4 : KICK OFF (4.4 – 5.75) ----------
+function S4(t) {
+  rect(0, 0, W, H, CREAM);
+  // speed dashes
+  for (let i = 0; i < 18; i++) {
+    const y = rnd(i) * H, len = 80 + rnd(i + 50) * 260, sp = 2200 + rnd(i + 9) * 2600;
+    const x = W + 300 - ((t * sp + rnd(i + 3) * W * 2) % (W + 700));
+    rect(x, y, len, 10, i % 4 === 0 ? RED : BLACK);
+  }
+  const bp = inOutCubic(prog(t, 0.1, 0.8));
+  const sx = -220, sy = H * 0.88, ex = W + 260, ey = H * 0.12;
+  const bx = lerp(sx, ex, bp), by = lerp(sy, ey, bp) - Math.sin(bp * Math.PI) * 220;
+  // trail stripes
+  const dx = ex - sx, dy = ey - sy, L = Math.hypot(dx, dy), nx = -dy / L, ny = dx / L;
+  if (bp > 0) {
+    const tail = clamp(bp - 0.4, 0, 1);
+    [[RED, -70], [YELLOW, 0], [BLUE, 70]].forEach(([c, off]) => {
+      ctx.beginPath(); ctx.lineCap = 'butt'; ctx.lineWidth = 56; ctx.strokeStyle = c;
+      const n = 30; let started = false;
+      for (let j = 0; j <= n; j++) {
+        const q = lerp(tail, bp, j / n);
+        const px = lerp(sx, ex, q) + nx * off, py = lerp(sy, ey, q) - Math.sin(q * Math.PI) * 220 + ny * off;
+        if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    });
+  }
+  const p1 = outExpo(prog(t, 0, 0.35)), p2 = outExpo(prog(t, 0.1, 0.45));
+  txt('KICK', lerp(-900, W / 2, p1), 780, 340, BLACK, { rot: -0.18, shadow: YELLOW, sd: 16 });
+  txt('OFF', lerp(W + 900, W / 2 + 40, p2), 1140, 360, RED, { rot: -0.18, shadow: BLACK, sd: 16 });
+  if (bp > 0 && bp < 1) ball(bx, by, 125, t * 18);
+  txt('▶ 00:00', 70, 140, 56, BLACK, { align: 'left', a: prog(t, 0.2, 0.4) });
+  // transition: red slab
+  const s = inOutCubic(prog(t, 1.12, 1.35));
+  if (s > 0) {
+    ctx.save(); ctx.translate(W / 2, H / 2); ctx.rotate(-0.21);
+    rect(-2200 + 2200 * s * 1.0 - 400, -1600, 2600, 3200, RED);
+    ctx.restore();
+  }
+}
+
+// ---------- SCENE 5 : GO GO GO / 열광 (5.75 – 7.4) ----------
+function S5(t) {
+  rect(0, 0, W, H, RED);
+  const D = 1.65, beatT = t % 0.25, pulse = Math.exp(-beatT * 14);
+  ctx.save();
+  const zoom = 1 + inCubic(prog(t, 1.3, D)) * 0.9;
+  ctx.translate(W / 2, H / 2); ctx.scale(zoom, zoom);
+  shake(lerp(2, 26, t / D), t, 3);
+  ctx.rotate(-0.21);
+  const rowH = 230, rows = 13;
+  for (let i = 0; i < rows; i++) {
+    const y = (i - rows / 2) * rowH + rowH / 2;
+    const odd = i % 2 === 1;
+    const word = odd ? 'VAMOS · ALLEZ · 가자 · ' : 'GO! GO! GO! ';
+    const size = odd ? 130 : 190;
+    if (odd) rect(-1400, y - rowH / 2 + 18, 2800, rowH - 36, BLACK);
+    ctx.font = `900 ${size}px ${FONT}`;
+    const w = ctx.measureText(word).width;
+    const dir = odd ? 1 : -1, off = dir * (t * 1100 + t * t * 900) + i * 137;
+    let x = ((off % w) + w) % w - w - 1400;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = odd ? YELLOW : (i % 4 === 0 ? CREAM : BLACK);
+    while (x < 1400) { ctx.fillText(word, x, y + 8); x += w; }
+  }
+  ctx.rotate(0.21);
+  const cp = outBack(prog(t, 0, 0.3));
+  ring(0, 0, (380 + pulse * 30) * cp, 26, YELLOW);
+  circle(0, 0, (340 + pulse * 30) * cp, BLUE);
+  if (cp > 0) {
+    txt('열광', 0, 10, 220, WHITE, { font: KFONT, weight: 900, s: cp * (1 + pulse * 0.08) });
+    txt('HEAT', 0, 175, 52, YELLOW, { ls: 16, a: cp });
+  }
+  ctx.restore();
+  // corner tag
+  txt('90+', W - 70, 130, 110, YELLOW, { align: 'right', shadow: BLACK, sd: 10 });
+  // white flash at end
+  const f = prog(t, D - 0.06, D);
+  if (f > 0) { ctx.globalAlpha = f; rect(0, 0, W, H, WHITE); ctx.globalAlpha = 1; }
+}
+
+// ---------- SCENE 6 : GOAL!!! (7.4 – 8.7) ----------
+const CONF = Array.from({ length: 70 }, (_, i) => ({
+  a: rnd(i) * TAU, v: 900 + rnd(i + 100) * 1700, s: 26 + rnd(i + 200) * 60,
+  type: i % 3, c: [RED, BLUE, BLACK, CREAM, YELLOW][i % 5], spin: (rnd(i + 300) - .5) * 14,
+}));
+function S6(t) {
+  const cx = W / 2, cy = H * 0.46;
+  rect(0, 0, W, H, YELLOW);
+  // radial burst
+  const n = 20, rot = t * 1.4, br = 2600 * outExpo(prog(t, 0, 0.35));
+  const cols = [RED, YELLOW, BLUE, YELLOW];
+  for (let i = 0; i < n; i++) {
+    const c = cols[i % 4]; if (c === YELLOW) continue;
+    ctx.beginPath(); ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, br, rot + i * TAU / n, rot + (i + 1) * TAU / n); ctx.closePath();
+    ctx.fillStyle = c; ctx.fill();
+  }
+  circle(cx, cy, 260 + 40 * Math.exp(-(t % 0.25) * 12), CREAM);
+  // confetti
+  CONF.forEach(p => {
+    const x = cx + Math.cos(p.a) * p.v * t, y = cy + Math.sin(p.a) * p.v * t + 1500 * t * t;
+    const r = p.spin * t;
+    if (p.type === 0) circle(x, y, p.s / 2, p.c);
+    else if (p.type === 1) square(x, y, p.s, r, p.c);
+    else tri(x, y, p.s * 0.7, r, p.c);
+  });
+  ctx.save();
+  shake(46 * Math.exp(-t * 4.5), t, 11);
+  const band = outExpo(prog(t, 0, 0.2));
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(-0.08);
+  rect(-W * 0.6 * band, -200, W * 1.2 * band, 400, BLACK);
+  ctx.restore();
+  letters('GOAL', cx, cy + 20, 300, YELLOW, i => {
+    const st = i * 0.04, p = outExpo(prog(t, st, st + 0.25));
+    if (p <= 0) return { a: 0 };
+    return { s: lerp(3.4, 1, p), r: -0.08 + (i % 2 ? 0.06 : -0.06) * Math.sin(t * 20) * Math.exp(-t * 3), dy: (i % 2 ? -8 : 8) };
+  });
+  const ex = outBack(prog(t, 0.2, 0.45));
+  txt('!!!', cx + 20, cy + 400, 300, RED, { s: ex, rot: 0.12, shadow: BLACK, sd: 14 });
+  const kp = outBack(prog(t, 0.35, 0.6));
+  if (kp > 0) {
+    ctx.save(); ctx.translate(cx, cy - 360); ctx.rotate(0.06); ctx.scale(kp, kp);
+    rect(-230, -70, 460, 140, BLUE);
+    txt('골! 골! 골!', 0, 4, 76, WHITE, { font: KFONT });
+    ctx.restore();
+  }
+  ctx.restore();
+  // flash in
+  if (t < 0.1) { ctx.globalAlpha = 1 - t / 0.1; rect(0, 0, W, H, WHITE); ctx.globalAlpha = 1; }
+  // transition: cream panel down
+  const w = outCubic(prog(t, 1.08, 1.3));
+  if (w > 0) rect(0, -H + H * w, W, H, CREAM);
+}
+
+// ---------- SCENE 7 : END CARD (8.7 – 10.0) ----------
+function S7(t) {
+  rect(0, 0, W, H, CREAM);
+  const pulse = Math.exp(-(t % 0.5) * 8);
+  const a = outExpo(prog(t, 0, 0.35));
+  rect(0, -H * 0.28 * (1 - a), W * 0.5, H * 0.28, RED);
+  const q = outBack(prog(t, 0.05, 0.4));
+  if (q > 0) { ctx.beginPath(); ctx.moveTo(W, 0); ctx.arc(W, 0, W * 0.5 * q, Math.PI / 2, Math.PI); ctx.closePath(); ctx.fillStyle = BLUE; ctx.fill(); }
+  tri(W * 0.25, H * 0.14, 150 * outBack(prog(t, 0.15, 0.45)), Math.PI + t * 0.6, YELLOW);
+  rect(0, H * 0.28, W * outExpo(prog(t, 0.1, 0.4)), 22, BLACK);
+
+  const lines = [['WORLD', 790, BLACK], ['CUP', 1040, RED], ['2026', 1290, BLUE]];
+  lines.forEach(([s, y, c], i) => {
+    const p = outExpo(prog(t, 0.12 + i * 0.09, 0.5 + i * 0.09));
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, y - 125, W, 250); ctx.clip();
+    txt(s, 66, y + 260 * (1 - p), 230, c, { align: 'left' });
+    ctx.restore();
+  });
+  const yc = outBack(prog(t, 0.3, 0.6));
+  circle(W * 0.76, H * 0.82, (230 + pulse * 14) * yc, YELLOW);
+  if (yc > 0) ball(W * 0.76, H * 0.82, 115 * yc, t * 3);
+  rect(66, 1460, 120 * outExpo(prog(t, 0.45, 0.7)), 16, BLACK);
+  txt('지금, 가장 뜨거운 90분', 66, 1545, 58, BLACK, { align: 'left', font: KFONT, weight: 800, a: prog(t, 0.5, 0.75) });
+  txt('FEEL THE FIRE', 66, 1625, 40, BLACK, { align: 'left', ls: 10, a: prog(t, 0.6, 0.85) });
+  txt('NO.26', W - 66, H - 90, 40, BLACK, { align: 'right', ls: 6, a: prog(t, 0.6, 0.85) });
+}
+
+function render(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1; ctx.setLineDash([]); ctx.letterSpacing = '0px';
+  if (t < 1.6) S1(t);
+  else if (t < 3.0) S2(t - 1.6);
+  else if (t < 4.4) S3(t - 3.0);
+  else if (t < 5.75) S4(t - 4.4);
+  else if (t < 7.4) S5(t - 5.75);
+  else if (t < 8.7) S6(t - 7.4);
+  else S7(t - 8.7);
+}
+
+// ---------- playback / export ----------
+const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'),
+      timeEl = document.getElementById('time'), recBtn = document.getElementById('rec'), status = document.getElementById('status');
+let playing = true, offset = 0, startAt = performance.now(), recording = false;
+const now = () => playing ? (offset + (performance.now() - startAt) / 1000) : offset;
+
+function frame() {
+  let t = now();
+  if (recording && t >= DUR) t = DUR - 0.001;
+  else t = t % DUR;
+  render(t);
+  scrub.value = t; timeEl.textContent = t.toFixed(2) + 's';
+  requestAnimationFrame(frame);
+}
+playBtn.onclick = () => {
+  if (playing) { offset = now() % DUR; playing = false; playBtn.textContent = '▶ 재생'; }
+  else { startAt = performance.now(); playing = true; playBtn.textContent = '⏸ 일시정지'; }
+};
+document.getElementById('restart').onclick = () => { offset = 0; startAt = performance.now(); };
+scrub.oninput = () => { offset = +scrub.value; startAt = performance.now(); if (playing) playBtn.click(); };
+
+recBtn.onclick = async () => {
+  if (recording) return;
+  const types = ['video/mp4;codecs=avc1.640033', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+  const mime = types.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m));
+  if (!mime) { status.textContent = '이 브라우저는 영상 녹화를 지원하지 않습니다. Chrome/Edge를 사용하세요.'; return; }
+  const stream = cv.captureStream(60);
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 20_000_000 });
+  const chunks = [];
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  rec.onstop = () => {
+    recording = false; recBtn.disabled = false;
+    const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
+    const blob = new Blob(chunks, { type: mime.split(';')[0] });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `worldcup_kinetic_1080x1920.${ext}`; a.click();
+    status.textContent = `저장 완료: worldcup_kinetic_1080x1920.${ext} (${(blob.size / 1e6).toFixed(1)}MB)`;
+    offset = 0; startAt = performance.now();
+  };
+  recording = true; recBtn.disabled = true;
+  playing = true; playBtn.textContent = '⏸ 일시정지';
+  offset = 0; startAt = performance.now();
+  rec.start();
+  status.textContent = '녹화 중… (10초) 이 탭을 활성 상태로 유지하세요.';
+  setTimeout(() => rec.stop(), DUR * 1000 + 120);
+};
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

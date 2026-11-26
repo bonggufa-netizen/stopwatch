@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WORLD CUP 2030 — Kinetic Bauhaus 16:9 (30s)</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #141414; color: #eee; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    font-family: "Segoe UI", "Malgun Gothic", sans-serif; padding: 16px;
+  }
+  .stage { position: relative; width: min(94vw, calc(80vh * 16 / 9)); aspect-ratio: 16 / 9; }
+  canvas { width: 100%; height: 100%; display: block; background: #F2EBDD; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  #start {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(17,17,17,.55); border: 0; cursor: pointer; color: #fff;
+    font: 800 clamp(18px, 2.4vw, 34px) "Malgun Gothic", sans-serif; letter-spacing: .02em;
+  }
+  #start span { background: #E63022; padding: .6em 1.2em; border-radius: 999px; box-shadow: 0 6px 0 #111; }
+  .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  button.c { font: 600 14px inherit; padding: 8px 14px; border: 0; border-radius: 6px; cursor: pointer; background: #2a2a2a; color: #eee; }
+  button.c:hover { background: #3a3a3a; }
+  button.primary { background: #E63022; color: #fff; }
+  button.primary:hover { background: #ff4433; }
+  button:disabled { opacity: .5; cursor: default; }
+  input[type=range] { width: 320px; accent-color: #F7C100; }
+  #time { font: 13px ui-monospace, Consolas, monospace; width: 64px; text-align: right; }
+  #status { font-size: 13px; color: #aaa; min-height: 18px; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <canvas id="c" width="1920" height="1080"></canvas>
+  <button id="start"><span>▶ 소리와 함께 재생</span></button>
+</div>
+<div class="bar">
+  <button class="c" id="play">▶ 재생</button>
+  <button class="c" id="restart">⟲ 처음부터</button>
+  <button class="c" id="mute">🔊 소리 켬</button>
+  <input id="scrub" type="range" min="0" max="30" step="0.01" value="0">
+  <span id="time">0.00s</span>
+  <button class="c primary" id="rec">● 영상으로 저장 (30초, 소리 포함)</button>
+</div>
+<div id="status"></div>
+
+<script>
+// =====================================================================
+//  WORLD CUP 2030 · 30s · 1920x1080 · Kinetic typography × Bauhaus
+// =====================================================================
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const W = 1920, H = 1080, DUR = 30, TAU = Math.PI * 2;
+
+const RED = '#E63022', YELLOW = '#F7C100', BLUE = '#1F4E9E', BLACK = '#111111', CREAM = '#F2EBDD', WHITE = '#FFFFFF';
+const FONT = '"Arial Black", "Helvetica Neue", Arial, "Malgun Gothic", sans-serif';
+const KFONT = '"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
+
+// ---------- math / easing ----------
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, p) => a + (b - a) * p;
+const outCubic = p => 1 - Math.pow(1 - p, 3);
+const inCubic = p => p * p * p;
+const inOutCubic = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+const outExpo = p => p >= 1 ? 1 : 1 - Math.pow(2, -10 * p);
+const outBack = p => { const c1 = 2.2, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
+const rnd = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const noise = (t, s) => Math.sin(t * 91.7 + s) * 0.6 + Math.sin(t * 53.3 + s * 2.1) * 0.4;
+const quad = (a, b, c, t) => (1 - t) * (1 - t) * a + 2 * (1 - t) * t * b + t * t * c;
+const cubic = (a, b, c, d, t) => { const u = 1 - t; return u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d; };
+
+// ---------- drawing helpers ----------
+function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
+function circle(x, y, r, c) { if (r <= 0) return; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fillStyle = c; ctx.fill(); }
+function ring(x, y, r, lw, c) { if (r <= 0) return; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.lineWidth = lw; ctx.strokeStyle = c; ctx.stroke(); }
+function tri(cx, cy, r, rot, c) {
+  if (r <= 0) return; ctx.beginPath();
+  for (let i = 0; i < 3; i++) { const a = rot - Math.PI / 2 + i * TAU / 3; ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+  ctx.closePath(); ctx.fillStyle = c; ctx.fill();
+}
+function square(cx, cy, s, rot, c) { if (s <= 0) return; ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot); rect(-s / 2, -s / 2, s, s, c); ctx.restore(); }
+function txt(s, x, y, size, color, o = {}) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(o.rot || 0); ctx.scale(o.sx ?? o.s ?? 1, o.sy ?? o.s ?? 1);
+  ctx.globalAlpha *= (o.a ?? 1);
+  ctx.font = `${o.weight || 900} ${size}px ${o.font || FONT}`;
+  ctx.textAlign = o.align || 'center'; ctx.textBaseline = o.base || 'middle';
+  ctx.letterSpacing = (o.ls || 0) + 'px';
+  if (o.stroke) { ctx.lineWidth = o.lw || 6; ctx.strokeStyle = o.stroke; ctx.lineJoin = 'round'; ctx.strokeText(s, 0, 0); }
+  if (o.shadow) { ctx.fillStyle = o.shadow; ctx.fillText(s, o.sd || 16, o.sd || 16); }
+  if (color) { ctx.fillStyle = color; ctx.fillText(s, 0, 0); }
+  ctx.restore();
+}
+function letters(str, cx, y, size, color, f, font = FONT) {
+  const chars = [...str];
+  ctx.letterSpacing = '0px';
+  ctx.font = `900 ${size}px ${font}`;
+  const ws = chars.map(ch => ctx.measureText(ch).width);
+  let x = cx - ws.reduce((a, b) => a + b, 0) / 2;
+  chars.forEach((ch, i) => {
+    const o = f(i) || {};
+    if (o.a !== 0) {
+      ctx.save(); ctx.globalAlpha = o.a ?? 1;
+      ctx.translate(x + ws[i] / 2 + (o.dx || 0), y + (o.dy || 0)); ctx.rotate(o.r || 0); ctx.scale(o.s ?? 1, o.s ?? 1);
+      ctx.font = `900 ${size}px ${font}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (o.shadow) { ctx.fillStyle = o.shadow; ctx.fillText(ch, 14, 14); }
+      ctx.fillStyle = o.c || color; ctx.fillText(ch, 0, 0); ctx.restore();
+    }
+    x += ws[i];
+  });
+}
+function marquee(str, y, size, color, off, font = FONT) {
+  ctx.save(); ctx.letterSpacing = '0px';
+  ctx.font = `900 ${size}px ${font}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = color;
+  const w = ctx.measureText(str).width;
+  let x = ((off % w) + w) % w - w - 400;
+  while (x < W + 400) { ctx.fillText(str, x, y); x += w; }
+  ctx.restore();
+}
+function wave(x0, x1, y, amp, lw, c) {
+  if (x1 <= x0) return; ctx.beginPath();
+  for (let x = x0; x <= x1; x += 6) { const yy = y + Math.sin((x - x0) / 38) * amp; x === x0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy); }
+  ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.strokeStyle = c; ctx.stroke();
+}
+function ball(x, y, r, rot) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+  const cols = [BLACK, WHITE, RED, WHITE];
+  for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, r, i * Math.PI / 2, (i + 1) * Math.PI / 2); ctx.closePath(); ctx.fillStyle = cols[i]; ctx.fill(); }
+  ring(0, 0, r, r * 0.1, BLACK); ctx.restore();
+}
+function shake(amp, t, seed = 0) { ctx.translate(noise(t, seed) * amp, noise(t, seed + 7.3) * amp); }
+function hitShake(t, hits, amp, decay = 12) {
+  let h = -99; for (const x of hits) if (x <= t) h = x;
+  shake(amp * Math.exp(-(t - h) * decay), t, 5);
+}
+function limb(px, py, ang, len, w, c) {
+  ctx.save(); ctx.translate(px, py); ctx.rotate(ang); ctx.fillStyle = c;
+  ctx.beginPath(); ctx.roundRect(-w / 2, -w / 2, w, len + w, w / 2); ctx.fill(); ctx.restore();
+}
+// Bauhaus geometric footballer. y = ground line.
+function player(x, y, s, o) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s); if (o.rot) ctx.rotate(o.rot);
+  const sw = Math.sin(o.ph || 0) * 0.75, hipY = -125;
+  limb(0, hipY, o.legB ?? sw, 120, 30, BLACK);
+  ctx.save(); ctx.translate(0, hipY); ctx.rotate(o.lean ?? 0.12);
+  limb(0, -120, o.armB ?? -sw * 0.9, 100, 24, BLACK);
+  rect(-44, -148, 88, 152, o.body);
+  txt(o.num, 0, -78, 64, o.numC || WHITE);
+  circle(0, -192, 36, BLACK);
+  limb(0, -120, o.armF ?? sw * 0.9, 100, 24, '#333');
+  ctx.restore();
+  limb(0, hipY, o.legF ?? -sw, 120, 30, '#333');
+  ctx.restore();
+}
+function goal(x0, y0, w, h, imp) {
+  const disp = (px, py) => {
+    if (!imp || imp.a <= 0) return [px, py];
+    const dx = px - imp.x, dy = py - imp.y, d = Math.hypot(dx, dy) || 1, k = imp.a * Math.exp(-d * d / (2 * 120 * 120));
+    return [px + dx / d * k, py + dy / d * k];
+  };
+  ctx.strokeStyle = BLUE; ctx.lineWidth = 3;
+  for (let gx = x0; gx <= x0 + w + 0.1; gx += 32) { ctx.beginPath(); for (let gy = y0; gy <= y0 + h + 0.1; gy += 12) { const [a, b] = disp(gx, gy); gy === y0 ? ctx.moveTo(a, b) : ctx.lineTo(a, b); } ctx.stroke(); }
+  for (let gy = y0; gy <= y0 + h + 0.1; gy += 32) { ctx.beginPath(); for (let gx = x0; gx <= x0 + w + 0.1; gx += 12) { const [a, b] = disp(gx, gy); gx === x0 ? ctx.moveTo(a, b) : ctx.lineTo(a, b); } ctx.stroke(); }
+  rect(x0 - 14, y0 - 16, w + 28, 18, BLACK); rect(x0 - 14, y0 - 16, 18, h + 16, BLACK); rect(x0 + w - 4, y0 - 16, 18, h + 16, BLACK);
+}
+function pitch() {
+  rect(0, 860, W, 14, BLACK);
+  rect(1180, 720, W - 1180, 6, BLACK);
+  ctx.beginPath(); ctx.moveTo(1180, 723); ctx.lineTo(940, 866); ctx.lineWidth = 6; ctx.strokeStyle = BLACK; ctx.stroke();
+}
+function bars(t, a, b, color, n = 8, fromTop = true) {
+  for (let i = 0; i < n; i++) {
+    const p = outCubic(prog(t, a + i * (b - a) * 0.35 / n, a + (b - a) * 0.65 + i * (b - a) * 0.35 / n));
+    if (p > 0) rect(i * W / n, fromTop ? 0 : H * (1 - p), W / n + 1, H * p, color);
+  }
+}
+const CONF = Array.from({ length: 80 }, (_, i) => ({
+  a: rnd(i) * TAU, v: 900 + rnd(i + 100) * 1800, s: 26 + rnd(i + 200) * 60,
+  type: i % 3, c: [RED, BLUE, BLACK, CREAM, YELLOW][i % 5], spin: (rnd(i + 300) - .5) * 14,
+}));
+function confetti(cx, cy, t) {
+  CONF.forEach(p => {
+    const x = cx + Math.cos(p.a) * p.v * t, y = cy + Math.sin(p.a) * p.v * t + 1400 * t * t, r = p.spin * t;
+    if (p.type === 0) circle(x, y, p.s / 2, p.c); else if (p.type === 1) square(x, y, p.s, r, p.c); else tri(x, y, p.s * 0.7, r, p.c);
+  });
+}
+function burst(cx, cy, t, cols, n = 22) {
+  const rot = t * 0.9, br = 2600 * outExpo(prog(t, 0, 0.35));
+  for (let i = 0; i < n; i++) {
+    const c = cols[i % cols.length]; if (!c) continue;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, br, rot + i * TAU / n, rot + (i + 1) * TAU / n); ctx.closePath();
+    ctx.fillStyle = c; ctx.fill();
+  }
+}
+function flash(a) { if (a > 0) { ctx.globalAlpha = clamp(a); rect(0, 0, W, H, WHITE); ctx.globalAlpha = 1; } }
+function chip(text, x, y, size, bg, fg, rot, s, font = KFONT) {
+  if (s <= 0) return;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(s, s);
+  ctx.font = `900 ${size}px ${font}`; ctx.letterSpacing = '0px';
+  const w = ctx.measureText(text).width + size * 0.9;
+  rect(-w / 2, -size * 0.85, w, size * 1.7, bg);
+  txt(text, 0, size * 0.06, size, fg, { font });
+  ctx.restore();
+}
+function score(text, a) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  rect(W - 400, 50, 330, 90, BLACK); rect(W - 400, 50, 18, 90, RED);
+  txt(text, W - 225, 98, 50, CREAM);
+  ctx.restore();
+}
+
+// =====================================================================
+//  SCENES
+// =====================================================================
+
+// 0–3 : 2030 ---------------------------------------------------------
+function S1(t) {
+  rect(0, 0, W, H, CREAM);
+  circle(330, 780, 430 * outBack(prog(t, 0, 0.5)), RED);
+  const bw = outExpo(prog(t, 0.1, 0.5));
+  rect(W - 560 * bw, 0, 560, 380, BLUE);
+  tri(W - 280, H - 220, 220 * outBack(prog(t, 0.25, 0.7)), t * 1.2, YELLOW);
+  rect(0, 250, W * outExpo(prog(t, 0.2, 0.6)), 18, BLACK);
+  txt('THE CENTENARY EDITION', 120, 180, 40, BLACK, { align: 'left', ls: 12, a: prog(t, 0.3, 0.6) });
+  ctx.save();
+  hitShake(t, [0.4, 0.6, 0.8, 1.0, 1.3], 16);
+  const cols = [BLACK, RED, BLUE, BLACK];
+  letters('2030', W / 2, 560, 500, BLACK, i => {
+    const st = 0.4 + i * 0.2, p = prog(t, st, st + 0.3);
+    if (p <= 0) return { a: 0 };
+    const beat = t > 1.3 ? Math.exp(-((t - 1.3) % 0.5) * 10) * 0.04 : 0;
+    return { s: lerp(2.2, 1, outBack(p)) + beat, r: (i % 2 ? 1 : -1) * 0.4 * (1 - outCubic(p)), c: cols[i], shadow: i === 1 ? BLACK : null };
+  });
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 830, W, 140); ctx.clip();
+  txt('WORLD CUP', W / 2, 900 + 140 * (1 - outExpo(prog(t, 1.3, 1.7))), 120, BLACK, { ls: 40 });
+  ctx.restore();
+  ctx.restore();
+  txt('KOREA REPUBLIC  ●  대한민국', 120, H - 70, 34, BLACK, { align: 'left', ls: 6, font: FONT, a: prog(t, 1.8, 2.1) });
+  const w = outCubic(prog(t, 2.7, 3.0));
+  if (w > 0) rect(W * (1 - w), 0, W, H, BLACK);
+}
+
+// 3–6 : 1930 → 2030 / 100 YEARS --------------------------------------
+const YEARS = [1930, 1934, 1938, 1950, 1954, 1958, 1962, 1966, 1970, 1974, 1978, 1982, 1986, 1990, 1994, 1998, 2002, 2006, 2010, 2014, 2018, 2022, 2026, 2030];
+function S2(t) {
+  rect(0, 0, W, H, BLACK);
+  if (t < 1.5) {
+    const yp = inOutCubic(prog(t, 0.1, 1.3)), year = Math.round(lerp(1930, 2030, yp));
+    txt('1930 → 2030', W / 2, 130, 44, CREAM, { ls: 16, a: prog(t, 0, 0.3) });
+    ctx.save(); shake(4 * (1 - yp) * (yp > 0 ? 1 : 0), t, 2);
+    txt(String(year), W / 2, 450, 380, YELLOW, { shadow: RED, sd: 16 });
+    ctx.restore();
+    const x0 = 160, x1 = 1760, ly = 760;
+    rect(x0, ly - 4, (x1 - x0) * outExpo(prog(t, 0, 0.4)), 8, CREAM);
+    YEARS.forEach((yy, i) => {
+      const x = lerp(x0, x1, (yy - 1930) / 100);
+      if (year >= yy) {
+        const pop = outBack(clamp((year - yy) / 6));
+        const big = yy === 2002 || yy === 2030;
+        square(x, ly, (big ? 52 : 34) * pop, Math.PI / 4 * (1 - pop), [RED, YELLOW, BLUE, CREAM][i % 4]);
+        if (big) txt(String(yy), x, ly - 70, 40, yy === 2002 ? RED : YELLOW, { s: pop });
+      }
+    });
+    txt('1930', x0, ly + 60, 34, CREAM, { a: prog(t, 0.1, 0.3) });
+    txt('2030', x1, ly + 60, 34, CREAM, { a: prog(t, 0.1, 0.3) });
+  } else {
+    const lb = t - 1.5;
+    ctx.save(); hitShake(lb, [0, 0.12, 0.24], 18);
+    txt('1930 — 2030', W / 2, 130, 44, YELLOW, { ls: 16 });
+    const p1 = outBack(prog(lb, 0, 0.3)), p2 = outBack(prog(lb, 0.12, 0.42)), p3 = outBack(prog(lb, 0.24, 0.54));
+    ctx.save(); ctx.translate(560, 680); ctx.scale(1, p1); rect(-60, -440, 120, 440, YELLOW); ctx.restore();
+    tri(560, 260, 70 * p1, -Math.PI / 6 - 0.5, YELLOW);
+    ctx.save(); ctx.translate(900, 460); ctx.rotate(lb * 1.5);
+    ring(0, 0, 175 * p2, 100, RED); rect(-6, -230 * p2, 12, 60 * p2, BLACK); ctx.restore();
+    ctx.save(); ctx.translate(1360, 460); ctx.rotate(-lb * 1.5);
+    ring(0, 0, 175 * p3, 100, BLUE); rect(-6, -230 * p3, 12, 60 * p3, BLACK); ctx.restore();
+    circle(900, 460, 36 * p2, CREAM); circle(1360, 460, 36 * p3, CREAM);
+    letters('YEARS OF FIRE', W / 2, 860, 120, CREAM, i => {
+      const st = 0.35 + i * 0.04, p = prog(lb, st, st + 0.3);
+      if (p <= 0) return { a: 0 };
+      return { dy: 120 * (1 - outExpo(p)), c: i >= 9 ? RED : CREAM };
+    });
+    ctx.restore();
+  }
+  const ir = inCubic(prog(t, 2.72, 3.0));
+  circle(W / 2, H / 2, 2300 * ir, RED);
+}
+
+// 6–9 : 대~한민국 짝짝 짝 짝짝 ----------------------------------------
+const CLAPS = [1.5, 1.75, 2.0, 2.5, 2.75];
+function S3(t) {
+  rect(0, 0, W, H, RED);
+  ctx.save(); ctx.translate(W / 2, H / 2); ctx.rotate(t * 0.5); ctx.setLineDash([60, 40]); ring(0, 0, 640, 26, BLACK); ctx.restore();
+  ctx.setLineDash([]);
+  ctx.save(); ctx.translate(W / 2, H / 2); ctx.rotate(-0.25); rect(-1400, 210, 2800, 26, YELLOW); rect(-1400, -330, 2800, 12, BLACK); ctx.restore();
+  txt('DAE-HAN-MIN-GUK', W / 2, 110, 40, CREAM, { ls: 18, a: prog(t, 0, 0.3) });
+  ctx.save();
+  hitShake(t, [0, 0.5, 0.75, 1.0, ...CLAPS], 22);
+  const syl = [['대', 0, 360], ['한', 0.5, 900], ['민', 0.75, 1180], ['국', 1.0, 1460]];
+  syl.forEach(([s, st, x], i) => {
+    const p = outExpo(prog(t, st, st + 0.16));
+    if (p <= 0) return;
+    const sx = i === 0 ? lerp(1.35, 1, prog(t, 0, 0.5)) : 1;
+    txt(s, x, 420, 300, CREAM, { font: KFONT, s: lerp(2, 1, p), sx: lerp(2, 1, p) * sx, shadow: BLACK, sd: 16 });
+  });
+  wave(560, 560 + 220 * outCubic(prog(t, 0.05, 0.45)), 430, 24, 24, YELLOW);
+  if (t > 1.0) txt('!', 1680, 420, 300, YELLOW, { s: outBack(prog(t, 1.0, 1.2)), shadow: BLACK, sd: 16 });
+  const cx = [520, 760, 1000, 1300, 1540];
+  CLAPS.forEach((ct, i) => {
+    const p = outBack(prog(t, ct, ct + 0.15));
+    if (p <= 0) return;
+    const rp = prog(t, ct, ct + 0.5);
+    if (rp < 1) { ctx.globalAlpha = 1 - rp; ring(cx[i], 800, 110 + rp * 260, 14, YELLOW); ctx.globalAlpha = 1; }
+    circle(cx[i], 800, 100 * p, i === 2 ? BLACK : YELLOW);
+    txt('짝', cx[i], 806, 110, i === 2 ? YELLOW : BLACK, { font: KFONT, s: p, rot: (i % 2 ? .12 : -.12) });
+  });
+  ctx.restore();
+  txt('12TH PLAYER', 80, H - 60, 32, CREAM, { align: 'left', ls: 10 });
+  const w = outCubic(prog(t, 2.8, 3.0));
+  if (w > 0) rect(W * (1 - w), 0, W, H, YELLOW);
+}
+
+// 9–10.2 : SON intro --------------------------------------------------
+function S4a(t) {
+  rect(0, 0, W, H, YELLOW);
+  circle(1700, 160, 300 * outBack(prog(t, 0.05, 0.45)), RED);
+  const p = outExpo(prog(t, 0, 0.35));
+  txt('7', 430, 560 + (1 - p) * 800, 1000, BLACK, { shadow: RED, sd: 26 });
+  rect(820, 540 - 400 * outExpo(prog(t, 0.1, 0.4)), 18, 800 * outExpo(prog(t, 0.1, 0.4)), BLACK);
+  txt('SON', lerp(W + 300, 900, outExpo(prog(t, 0.1, 0.45))), 360, 300, BLACK, { align: 'left' });
+  txt('HEUNG-MIN', lerp(W + 300, 905, outExpo(prog(t, 0.18, 0.55))), 570, 130, BLACK, { align: 'left' });
+  const bw = outExpo(prog(t, 0.3, 0.6));
+  rect(905, 680, 520 * bw, 180, RED);
+  txt('손흥민', 925, 774, 120, CREAM, { align: 'left', font: KFONT, a: prog(t, 0.4, 0.55) });
+  txt('NO.7  ·  CAPTAIN  ·  FORWARD', 905, 940, 36, BLACK, { align: 'left', ls: 8, a: prog(t, 0.5, 0.7) });
+  bars(t, 1.0, 1.2, CREAM);
+}
+
+// 10.2–12.25 : SON — run, shoot, score ---------------------------------
+function S4b(t) {
+  rect(0, 0, W, H, CREAM);
+  ctx.save();
+  const zoom = 1 + t * 0.025; ctx.translate(W / 2, H / 2); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -H / 2);
+  if (t > 1.9) shake(30 * Math.exp(-(t - 1.9) * 8), t, 9);
+  circle(1600, 300, 210, YELLOW);
+  rect(0, 0, 300, 120, RED);
+  txt('질주', 1500 - t * 420, 330, 460, null, { font: KFONT, stroke: BLACK, lw: 5 });
+  pitch();
+  const imp = t > 1.9 ? { x: 1760, y: 505, a: 70 * Math.exp(-(t - 1.9) * 5) } : null;
+  goal(1380, 470, 440, 250, imp);
+  // keeper
+  const dp = outCubic(prog(t, 1.55, 1.95));
+  player(1600 + 120 * dp, 720 - 90 * dp, 0.72, { body: BLUE, num: '1', ph: 0.4, rot: 1.15 * dp, armF: -2.6 * dp - 0.3, armB: -2.4 * dp - 0.2, lean: 0 });
+  // speed lines
+  for (let i = 0; i < 10; i++) {
+    const y = 560 + rnd(i) * 300, len = 80 + rnd(i + 20) * 220, sp = 1800 + rnd(i + 9) * 1600;
+    const x = W - ((t * sp + rnd(i + 3) * W * 2) % (W + 600));
+    if (t < 1.45) rect(x, y, len, 8, i % 3 === 0 ? RED : BLACK);
+  }
+  // SON
+  const run = t < 1.3 ? t : 1.3, sx = lerp(150, 640, run / 1.3);
+  let legF = null;
+  if (t > 1.15) { const k1 = prog(t, 1.15, 1.3), k2 = prog(t, 1.3, 1.45); legF = k2 > 0 ? lerp(0.9, -1.5, outCubic(k2)) : lerp(-Math.sin(1.15 * 18) * 0.75, 0.9, k1); }
+  player(sx, 860, 1, { body: RED, num: '7', ph: Math.min(t, 1.15) * 18, legF, lean: t > 1.3 ? -0.05 : 0.18 });
+  // ball
+  if (t < 1.4) ball(sx + 80 + Math.sin(t * 18) * 10, 838, 24, t * 12);
+  else if (t < 1.9) {
+    const p = prog(t, 1.4, 1.9);
+    // trail
+    ctx.beginPath(); for (let j = 0; j <= 20; j++) { const q = p * j / 20; const x = quad(720, 1180, 1760, q), y = quad(838, 250, 505, q); j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.lineWidth = 10; ctx.strokeStyle = RED; ctx.setLineDash([22, 16]); ctx.stroke(); ctx.setLineDash([]);
+    ball(quad(720, 1180, 1760, p), quad(838, 250, 505, p), lerp(24, 15, p), t * 30);
+  } else ball(1768 + Math.sin(t * 40) * 3 * Math.exp(-(t - 1.9) * 5), 510, 15, 0);
+  if (t > 1.9) { const rp = prog(t, 1.9, 2.25); ctx.globalAlpha = 1 - rp; ring(1760, 505, 30 + rp * 260, 12, RED); ctx.globalAlpha = 1; }
+  // texts
+  txt('SON · 7', 60, 60, 40, CREAM, { align: 'left', ls: 6 });
+  const sp = outBack(prog(t, 1.4, 1.6));
+  if (sp > 0) txt('SHOT!', 880, 560, 210, RED, { s: sp, rot: -0.15, shadow: BLACK, sd: 12 });
+  ctx.restore();
+  flash(1 - prog(t, 1.92, 2.15) * 1.0 - (t < 1.92 ? 1 : 0));
+}
+
+// 12.25–15.3 : SON GOAL + 찰칵 ------------------------------------------
+function S4c(t) {
+  const cx = W / 2, cy = 500;
+  rect(0, 0, W, H, RED);
+  burst(cx, cy, t, [YELLOW, null, BLUE, null]);
+  confetti(cx, cy, t);
+  ctx.save();
+  shake(44 * Math.exp(-t * 4.5), t, 11);
+  const band = outExpo(prog(t, 0, 0.2));
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(-0.06); rect(-W * 0.6 * band, -190, W * 1.2 * band, 380, BLACK); ctx.restore();
+  letters('GOAL', cx, cy + 10, 300, YELLOW, i => {
+    const st = i * 0.05, p = outExpo(prog(t, st, st + 0.25));
+    if (p <= 0) return { a: 0 };
+    return { s: lerp(3.4, 1, p), r: -0.06 + (i % 2 ? 0.05 : -0.05) * Math.sin(t * 20) * Math.exp(-t * 3) };
+  });
+  txt('!!!', 1640, cy + 10, 260, RED, { s: outBack(prog(t, 0.2, 0.45)), rot: 0.12, shadow: CREAM, sd: 12 });
+  chip('손흥민 골!!!', cx, 170, 74, BLUE, CREAM, 0.04, outBack(prog(t, 0.3, 0.55)));
+  ctx.restore();
+  const mb = outExpo(prog(t, 0.4, 0.7));
+  rect(0, 880, W * mb, 120, BLACK);
+  if (mb > 0) marquee('SON HEUNG-MIN · 7 · 손흥민 · ', 942, 66, CREAM, -t * 500);
+  score('KOR 1 : 0', prog(t, 0.6, 0.8));
+  // 찰칵 — camera frame closes in
+  const c = outExpo(prog(t, 1.6, 1.9));
+  if (c > 0) {
+    const L = lerp(0, 330, c), T = lerp(0, 260, c), R = lerp(W, W - 330, c), B = lerp(H, 760, c), k = 130, th = 22;
+    ctx.fillStyle = CREAM;
+    [[L, T, 1, 1], [R, T, -1, 1], [L, B, 1, -1], [R, B, -1, -1]].forEach(([x, y, sx, sy]) => {
+      ctx.fillRect(sx > 0 ? x : x - k, sy > 0 ? y : y - th, k, th);
+      ctx.fillRect(sx > 0 ? x : x - th, sy > 0 ? y : y - k, th, k);
+    });
+  }
+  flash(t > 1.95 ? 1 - prog(t, 1.95, 2.2) : 0);
+  const cp = outBack(prog(t, 1.97, 2.2));
+  chip('찰칵!', 1480, 300, 110, YELLOW, BLACK, 0.12, cp);
+  const w = outCubic(prog(t, 2.85, 3.05));
+  if (w > 0) rect(-W + W * w, 0, W, H, BLUE);
+}
+
+// 15.5–16.6 : LEE intro ----------------------------------------------
+function S5a(t) {
+  rect(0, 0, W, H, BLUE);
+  tri(1700, 180, 240 * outBack(prog(t, 0.05, 0.45)), t, RED);
+  const p = outExpo(prog(t, 0, 0.35));
+  txt('18', 500, 560 + (1 - p) * 800, 680, YELLOW, { shadow: BLACK, sd: 24 });
+  rect(1010, 540 - 400 * outExpo(prog(t, 0.1, 0.4)), 18, 800 * outExpo(prog(t, 0.1, 0.4)), CREAM);
+  txt('LEE', lerp(W + 300, 1080, outExpo(prog(t, 0.1, 0.45))), 360, 300, CREAM, { align: 'left' });
+  txt('KANG-IN', lerp(W + 300, 1085, outExpo(prog(t, 0.18, 0.55))), 570, 130, CREAM, { align: 'left' });
+  const bw = outExpo(prog(t, 0.3, 0.6));
+  rect(1085, 680, 520 * bw, 180, YELLOW);
+  txt('이강인', 1105, 774, 120, BLACK, { align: 'left', font: KFONT, a: prog(t, 0.4, 0.55) });
+  txt('왼발의 마법  ·  LEFT FOOT MAGIC', 1085, 940, 34, CREAM, { align: 'left', ls: 4, font: FONT, a: prog(t, 0.5, 0.7) });
+  bars(t, 0.92, 1.1, CREAM);
+}
+
+// 16.6–18.65 : LEE — free kick curl ------------------------------------
+const P0 = [560, 846], P1 = [880, 180], P2 = [1300, 230], P3 = [1415, 505];
+const bz = q => [cubic(P0[0], P1[0], P2[0], P3[0], q), cubic(P0[1], P1[1], P2[1], P3[1], q)];
+function S5b(t) {
+  rect(0, 0, W, H, CREAM);
+  ctx.save();
+  const zoom = 1 + t * 0.025; ctx.translate(W / 2, H / 2); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -H / 2);
+  if (t > 1.9) shake(30 * Math.exp(-(t - 1.9) * 8), t, 4);
+  circle(260, 260, 200, BLUE);
+  rect(W - 320, 0, 320, 110, YELLOW);
+  txt('왼발', 1250 - t * 380, 330, 460, null, { font: KFONT, stroke: BLACK, lw: 5 });
+  pitch();
+  const imp = t > 1.9 ? { x: 1415, y: 505, a: 70 * Math.exp(-(t - 1.9) * 5) } : null;
+  goal(1380, 470, 440, 250, imp);
+  const dp = outCubic(prog(t, 1.6, 1.98));
+  player(1600 - 130 * dp, 720 - 90 * dp, 0.72, { body: BLUE, num: '1', ph: 0.4, rot: -1.15 * dp, armF: 2.6 * dp + 0.3, armB: 2.4 * dp + 0.2, lean: 0 });
+  // wall
+  const jy = -80 * Math.sin(Math.PI * prog(t, 1.05, 1.55));
+  [1010, 1075, 1140, 1205].forEach((x, i) => player(x, 800 + jy, 0.82, { body: BLACK, num: String([4, 5, 6, 8][i]), ph: 0, legF: 0.05, legB: -0.05, armF: 0.1, armB: -0.1, lean: 0 }));
+  // LEE
+  const lx = lerp(250, 470, inOutCubic(prog(t, 0.2, 0.95)));
+  let legF = null;
+  if (t > 0.8) { const k1 = prog(t, 0.8, 0.92), k2 = prog(t, 0.92, 1.05); legF = k2 > 0 ? lerp(0.9, -1.5, outCubic(k2)) : lerp(0, 0.9, k1); }
+  const ph = t < 0.95 ? Math.max(0, t - 0.2) * 16 : 0.95 * 16;
+  player(lx, 860, 1, { body: RED, num: '18', ph, legF, lean: t > 1 ? -0.05 : 0.15 });
+  // ball + dashed curl
+  const bp = prog(t, 1.0, 1.9);
+  if (bp > 0) {
+    ctx.beginPath(); for (let j = 0; j <= 30; j++) { const [x, y] = bz(bp * j / 30); j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.lineWidth = 10; ctx.strokeStyle = BLUE; ctx.setLineDash([22, 16]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (t < 1.9) { const [x, y] = bz(bp); ball(x, y, lerp(24, 15, bp), t * 28); }
+  else ball(1410 + Math.sin(t * 40) * 3 * Math.exp(-(t - 1.9) * 5), 510, 15, 0);
+  if (t > 1.9) { const rp = prog(t, 1.9, 2.25); ctx.globalAlpha = 1 - rp; ring(1415, 505, 30 + rp * 260, 12, BLUE); ctx.globalAlpha = 1; }
+  txt('FREE KICK · 18', 60, 60, 40, CREAM, { align: 'left', ls: 6, a: 0 });
+  txt('FREE KICK · 18', W - 300, 56, 34, BLACK, { align: 'left', ls: 4 });
+  const sp = outBack(prog(t, 1.05, 1.25));
+  if (sp > 0) txt('CURL!', 760, 420, 200, RED, { s: sp, rot: -0.12, shadow: BLACK, sd: 12 });
+  ctx.restore();
+  flash(1 - prog(t, 1.92, 2.15) * 1.0 - (t < 1.92 ? 1 : 0));
+}
+
+// 18.65–22 : LEE GOAL — four Bauhaus panels ------------------------------
+function S5c(t) {
+  const PC = [RED, YELLOW, BLUE, BLACK], LC = [CREAM, BLACK, YELLOW, RED];
+  rect(0, 0, W, H, CREAM);
+  ctx.save();
+  shake(40 * Math.exp(-t * 4.5), t, 13);
+  for (let i = 0; i < 4; i++) {
+    const p = outExpo(prog(t, i * 0.08, i * 0.08 + 0.3));
+    rect(i * W / 4, -H * (1 - p), W / 4 + 1, H, PC[i]);
+  }
+  ctx.globalAlpha = 0.9; confetti(W / 2, 460, t); ctx.globalAlpha = 1;
+  ['G', 'O', 'A', 'L'].forEach((ch, i) => {
+    const p = outExpo(prog(t, 0.1 + i * 0.08, 0.38 + i * 0.08));
+    if (p <= 0) return;
+    const wob = Math.sin(t * 18 + i) * 0.06 * Math.exp(-t * 2.5);
+    txt(ch, i * W / 4 + W / 8, 470, 400, LC[i], { s: lerp(2.6, 1, p), rot: wob + (i % 2 ? 0.04 : -0.04) });
+  });
+  chip('이강인 골!!!', W / 2, 150, 74, CREAM, BLACK, -0.04, outBack(prog(t, 0.45, 0.7)));
+  ctx.restore();
+  const mb = outExpo(prog(t, 0.5, 0.8));
+  ctx.save(); ctx.translate(W / 2, 860); ctx.rotate(-0.05);
+  rect(-W * 0.6 * mb, -65, W * 1.2 * mb, 130, BLACK);
+  ctx.translate(-W / 2, 0);
+  if (mb > 0) marquee('이강인 · LEE KANG-IN · 18 · 왼발의 마법 · ', 4, 66, YELLOW, t * 520);
+  ctx.restore();
+  score('KOR 2 : 0', prog(t, 0.7, 0.9));
+  flash(1 - prog(t, 0, 0.12));
+  const w = outCubic(prog(t, 3.1, 3.35));
+  if (w > 0) rect(0, -H + H * w, W, H, CREAM);
+}
+
+// 22–27 : 오 필승 코리아 ---------------------------------------------
+const OH = [['오', 0, 560, 290], ['필', 0.75, 1080, 290], ['승', 1.0, 1360, 290], ['코', 1.5, 700, 570], ['리', 1.75, 980, 570], ['아', 2.0, 1260, 570]];
+function S6(t) {
+  const c = t < 2.5 ? 0 : 1, lc = t - c * 2.5;
+  rect(0, 0, W, H, c ? BLACK : CREAM);
+  // red/blue split disc
+  const dr = 470 * (c ? 1 : outBack(prog(lc, 0, 0.3)));
+  ctx.save(); ctx.translate(W / 2, 430); ctx.rotate(t * 0.6 + (c ? Math.PI : 0));
+  if (dr > 0) {
+    ctx.beginPath(); ctx.arc(0, 0, dr, Math.PI, TAU); ctx.closePath(); ctx.fillStyle = RED; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, dr, 0, Math.PI); ctx.closePath(); ctx.fillStyle = BLUE; ctx.fill();
+  }
+  ctx.restore();
+  txt(c ? 'OH! PILSEUNG KOREA' : '12TH PLAYER', 60, 60, 36, c ? CREAM : BLACK, { align: 'left', ls: 8 });
+  txt('WC2030', W - 60, 60, 36, c ? YELLOW : BLACK, { align: 'right', ls: 8 });
+  // crowd wave
+  const rowsY = [800, 870, 940, 1010], rowC = [RED, BLACK, RED, BLUE];
+  rowsY.forEach((ry, r) => {
+    for (let x = (r % 2) * 35 - 20; x < W + 40; x += 70) {
+      const j = -Math.abs(Math.sin(t * 6 + x * 0.006 - r * 0.6)) * 34;
+      const col = c && rowC[r] === BLACK ? '#333' : rowC[r];
+      rect(x - 24, ry + 18 + j, 48, 90, col);
+      circle(x, ry + j, 26, col);
+      if (rnd(x * 3 + r) > 0.82) { const up = Math.abs(Math.sin(t * 6 + x)) * 20; rect(x - 30, ry - 90 + j - up, 60, 44, [YELLOW, CREAM, BLUE][Math.floor(rnd(x + r) * 3)]); }
+    }
+  });
+  rect(0, H - 70, W, 70, YELLOW);
+  marquee('OH! PILSEUNG KOREA · 오 필승 코리아 · ', H - 35, 46, BLACK, -t * 400);
+  // syllables
+  ctx.save();
+  hitShake(lc, [0, 0.75, 1.0, 1.5, 1.75, 2.0], 20);
+  if (c) ctx.translate(0, 0), ctx.rotate(0);
+  OH.forEach(([s, st, x, y], i) => {
+    const p = outExpo(prog(lc, st, st + 0.15));
+    if (p <= 0) return;
+    const sx = i === 0 ? lerp(1.4, 1, prog(lc, 0, 0.6)) : 1;
+    const col = c ? (i < 3 ? YELLOW : CREAM) : CREAM;
+    txt(s, x, y, 250, col, { font: KFONT, s: lerp(2.1, 1, p), sx: lerp(2.1, 1, p) * sx, shadow: BLACK, sd: 14, rot: c ? -0.05 : 0 });
+  });
+  wave(700, 700 + 220 * outCubic(prog(lc, 0.05, 0.6)), 300, 22, 22, YELLOW);
+  if (lc > 2.0) txt('!', 1470, 570, 250, YELLOW, { s: outBack(prog(lc, 2.0, 2.2)), shadow: BLACK, sd: 14 });
+  ctx.restore();
+  flash(1 - prog(t, 2.5, 2.6) - (t < 2.5 ? 1 : 0));
+  const w = outCubic(prog(t, 4.8, 5.0));
+  if (w > 0) rect(0, H * (1 - w), W, H, CREAM);
+}
+
+// 27–30 : END CARD ---------------------------------------------------
+function S7(t) {
+  rect(0, 0, W, H, CREAM);
+  const pulse = Math.exp(-(t % 0.5) * 8);
+  const q = outBack(prog(t, 0.05, 0.45));
+  if (q > 0) { ctx.beginPath(); ctx.moveTo(W, H); ctx.arc(W, H, 560 * q, Math.PI, Math.PI * 1.5); ctx.closePath(); ctx.fillStyle = BLUE; ctx.fill(); }
+  const a = outExpo(prog(t, 0, 0.35));
+  rect(W - 600, -320 * (1 - a), 600, 320, RED);
+  rect(1180, 0, 18, H * outExpo(prog(t, 0.1, 0.45)), BLACK);
+  tri(W - 300, 160, 110 * outBack(prog(t, 0.2, 0.5)), Math.PI + t * 0.6, YELLOW);
+  const yc = outBack(prog(t, 0.3, 0.6));
+  circle(1520, 610, (200 + pulse * 12) * yc, YELLOW);
+  if (yc > 0) ball(1520, 610, 100 * yc, t * 3);
+  const lines = [['WORLD CUP', 290, 150, BLACK, FONT], ['2030', 520, 330, RED, FONT], ['대한민국', 770, 140, BLUE, KFONT]];
+  lines.forEach(([s, y, size, col, font], i) => {
+    const p = outExpo(prog(t, 0.12 + i * 0.1, 0.55 + i * 0.1));
+    ctx.save(); ctx.beginPath(); ctx.rect(0, y - size * 0.62, 1170, size * 1.24); ctx.clip();
+    txt(s, 110, y + size * 1.2 * (1 - p), size, col, { align: 'left', font });
+    ctx.restore();
+  });
+  rect(110, 890, 140 * outExpo(prog(t, 0.5, 0.75)), 14, BLACK);
+  txt('100 YEARS  ·  오 필승 코리아  ·  지금, 가장 뜨거운 90분', 110, 960, 40, BLACK, { align: 'left', font: KFONT, weight: 800, a: prog(t, 0.6, 0.9) });
+  ctx.globalAlpha = 1;
+  const f = prog(t, 2.75, 3.0);
+  if (f > 0) { ctx.globalAlpha = f; rect(0, 0, W, H, BLACK); ctx.globalAlpha = 1; }
+}
+
+function render(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1; ctx.setLineDash([]); ctx.letterSpacing = '0px';
+  if (t < 3) S1(t);
+  else if (t < 6) S2(t - 3);
+  else if (t < 9) S3(t - 6);
+  else if (t < 10.2) S4a(t - 9);
+  else if (t < 12.25) S4b(t - 10.2);
+  else if (t < 15.5) S4c(t - 12.25);
+  else if (t < 16.6) S5a(t - 15.5);
+  else if (t < 18.65) S5b(t - 16.6);
+  else if (t < 22) S5c(t - 18.65);
+  else if (t < 27) S6(t - 22);
+  else S7(t - 27);
+}
+
+// =====================================================================
+//  AUDIO — synthesized stadium (Web Audio, no external files)
+// =====================================================================
+let AC = null, MASTER = null, REC_DEST = null, NOISE = null, SESS = null, muted = false;
+function initAudio() {
+  if (AC) return;
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  const comp = AC.createDynamicsCompressor();
+  comp.threshold.value = -16; comp.ratio.value = 5; comp.attack.value = 0.004; comp.release.value = 0.2;
+  MASTER = AC.createGain(); MASTER.gain.value = 0.85;
+  MASTER.connect(comp); comp.connect(AC.destination);
+  REC_DEST = AC.createMediaStreamDestination(); comp.connect(REC_DEST);
+  const len = AC.sampleRate * 4;
+  NOISE = AC.createBuffer(2, len, AC.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = NOISE.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1; }
+}
+function stopAudio() {
+  if (!SESS) return;
+  SESS.srcs.forEach(s => { try { s.stop(); } catch (e) {} });
+  try { SESS.out.disconnect(); } catch (e) {}
+  SESS = null;
+}
+const FORM = { a: [800, 1250, 2600], ae: [620, 1750, 2500], i: [320, 2250, 3000], u: [360, 820, 2300], o: [480, 860, 2500], eu: [360, 1450, 2500] };
+const CROWD = [[0, 0], [1.2, .35], [3, .3], [6, .45], [9, .35], [10.4, .4], [11.6, .7], [12.1, .75], [12.2, 1], [14.5, .75], [15.5, .45], [16.6, .35], [17.6, .55], [18.5, .6], [18.6, 1], [21, .75], [22, .8], [27, .85], [28.6, 1], [29.6, .4], [30, 0]];
+const ROAR = [[0, 0], [12.05, 0], [12.2, 1], [14.8, .3], [15.5, 0], [18.5, 0], [18.65, 1], [21.3, .3], [22, .2], [27, .3], [28.6, .7], [30, 0]];
+const interp = (k, t) => { for (let i = 1; i < k.length; i++) if (t <= k[i][0]) return lerp(k[i - 1][1], k[i][1], (t - k[i - 1][0]) / (k[i][0] - k[i - 1][0])); return k[k.length - 1][1]; };
+
+// A/OUT/NB let the same score render live (AC) or offline (OfflineAudioContext for export)
+function startAudio(from, A = AC, OUT = MASTER, NB = NOISE, live = true) {
+  if (live) stopAudio();
+  const out = A.createGain(); out.connect(OUT);
+  const srcs = [];
+  if (live) SESS = { out, srcs };
+  const t0 = live ? A.currentTime + 0.06 : 0;
+  const at = T => t0 + (T - from);
+  const ok = T => T >= from - 0.02;
+  const noiseSrc = () => { const s = A.createBufferSource(); s.buffer = NB; s.loop = true; srcs.push(s); return s; };
+  const env = (g, w, peak, a, d) => { g.gain.setValueAtTime(0.0001, w); g.gain.linearRampToValueAtTime(peak, w + a); g.gain.exponentialRampToValueAtTime(0.0001, w + a + d); };
+  const filt = (type, f, q = 1) => { const b = A.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; };
+
+  // ---- continuous crowd beds ----
+  function bed(keys, type, f, q, mul, lfoRate, lfoDepth) {
+    const s = noiseSrc(), bf = filt(type, f, q), g = A.createGain(), am = A.createGain();
+    s.connect(bf).connect(am).connect(g).connect(out);
+    am.gain.value = 1 - lfoDepth;
+    if (lfoRate) { const l = A.createOscillator(), lg = A.createGain(); l.frequency.value = lfoRate; lg.gain.value = lfoDepth; l.connect(lg).connect(am.gain); l.start(t0); srcs.push(l); }
+    g.gain.setValueAtTime(Math.max(0.0001, interp(keys, from) * mul), t0);
+    keys.filter(k => k[0] > from).forEach(k => g.gain.linearRampToValueAtTime(Math.max(0.0001, k[1] * mul), at(k[0])));
+    s.start(t0, Math.random() * 3);
+  }
+  bed(CROWD, 'lowpass', 380, 0.7, 0.55, 0, 0);
+  bed(CROWD, 'bandpass', 750, 1.1, 0.9, 0.7, 0.25);
+  bed(CROWD, 'bandpass', 1700, 1.4, 0.45, 1.3, 0.3);
+  bed(ROAR, 'bandpass', 1200, 0.8, 1.1, 2.2, 0.2);
+  bed(ROAR, 'highpass', 3000, 0.7, 0.25, 3.1, 0.3);
+
+  // ---- one-shots ----
+  function kick(T, vol = 1, f0 = 140, f1 = 42, d = 0.35) {
+    if (!ok(T)) return; const w = at(T);
+    const o = A.createOscillator(), g = A.createGain(); o.type = 'sine';
+    o.frequency.setValueAtTime(f0, w); o.frequency.exponentialRampToValueAtTime(f1, w + d * 0.6);
+    env(g, w, vol, 0.004, d); o.connect(g).connect(out); o.start(w); o.stop(w + d + 0.05); srcs.push(o);
+  }
+  function hit(T, type, f, q, vol, d, a = 0.003) {
+    if (!ok(T)) return; const w = at(T);
+    const s = noiseSrc(), b = filt(type, f, q), g = A.createGain();
+    env(g, w, vol, a, d); s.connect(b).connect(g).connect(out); s.start(w, Math.random() * 3); s.stop(w + a + d + 0.05);
+  }
+  const boom = (T, v = 1) => { kick(T, 1.1 * v, 120, 35, 0.6); hit(T, 'lowpass', 220, 0.7, 0.5 * v, 0.5); };
+  const snare = T => { hit(T, 'highpass', 1400, 0.7, 0.45, 0.14); kick(T, 0.25, 220, 160, 0.08); };
+  const crash = (T, v = 0.35) => hit(T, 'highpass', 4500, 0.5, v, 1.3);
+  const tick = T => { if (!ok(T)) return; const w = at(T), o = A.createOscillator(), g = A.createGain(); o.frequency.value = 1900; env(g, w, 0.08, 0.002, 0.04); o.connect(g).connect(out); o.start(w); o.stop(w + 0.08); srcs.push(o); };
+  function clap(T, vol = 0.7) { for (let k = 0; k < 7; k++) hit(T + Math.random() * 0.035, 'bandpass', 1000 + Math.random() * 600, 0.9, vol * (0.5 + Math.random() * 0.5), 0.07); hit(T + 0.01, 'bandpass', 1500, 0.6, vol * 0.3, 0.3); }
+  const thump = T => { kick(T, 0.9, 180, 70, 0.1); hit(T, 'bandpass', 900, 1, 0.6, 0.05); };
+  function swish(T) { if (!ok(T)) return; const w = at(T), s = noiseSrc(), b = filt('bandpass', 4000, 1.5), g = A.createGain(); b.frequency.setValueAtTime(4500, w); b.frequency.exponentialRampToValueAtTime(700, w + 0.35); env(g, w, 0.6, 0.01, 0.35); s.connect(b).connect(g).connect(out); s.start(w); s.stop(w + 0.45); }
+  const shutter = T => { hit(T, 'highpass', 2600, 0.8, 0.9, 0.03); hit(T + 0.065, 'highpass', 2000, 0.8, 0.7, 0.04); kick(T + 0.01, 0.2, 600, 300, 0.05); };
+  function whistle(T, d) {
+    if (!ok(T)) return; const w = at(T);
+    const o = A.createOscillator(), l = A.createOscillator(), lg = A.createGain(), g = A.createGain(), b = filt('bandpass', 2900, 3);
+    o.frequency.value = 2900; l.frequency.value = 32; lg.gain.value = 140; l.connect(lg).connect(o.frequency);
+    g.gain.setValueAtTime(0.0001, w); g.gain.linearRampToValueAtTime(0.32, w + 0.02); g.gain.setValueAtTime(0.32, w + d - 0.04); g.gain.linearRampToValueAtTime(0.0001, w + d);
+    o.connect(b).connect(g).connect(out); o.start(w); l.start(w); o.stop(w + d + 0.05); l.stop(w + d + 0.05); srcs.push(o, l);
+    hit(T, 'bandpass', 2900, 2, 0.12, d);
+  }
+  function horn(T, d, base = 233) {
+    if (!ok(T)) return; const w = at(T), g = A.createGain(), b = filt('lowpass', 1600, 0.8);
+    g.gain.setValueAtTime(0.0001, w); g.gain.linearRampToValueAtTime(0.16, w + 0.05); g.gain.setValueAtTime(0.16, w + d - 0.1); g.gain.linearRampToValueAtTime(0.0001, w + d);
+    b.connect(g).connect(out);
+    [1, 1.26, 1.5, 1.005].forEach(m => { const o = A.createOscillator(); o.type = 'sawtooth'; o.frequency.value = base * m; o.connect(b); o.start(w); o.stop(w + d + 0.05); srcs.push(o); });
+  }
+  // crowd shout: many detuned voices through vowel formants
+  function shout(T, v, d, pitch = 210, vol = 0.5, n = 12, glide = 0.92) {
+    if (!ok(T)) return; const w = at(T);
+    const g = A.createGain(), mix = A.createGain();
+    g.gain.setValueAtTime(0.0001, w); g.gain.linearRampToValueAtTime(vol, w + 0.045);
+    g.gain.setValueAtTime(vol, w + Math.max(0.05, d - 0.06)); g.gain.exponentialRampToValueAtTime(0.0001, w + d + 0.22);
+    FORM[v].forEach((f, k) => { const b = filt('bandpass', f, f < 1000 ? 5 : 9), fg = A.createGain(); fg.gain.value = [1.4, 0.8, 0.3][k]; mix.connect(b).connect(fg).connect(g); });
+    g.connect(out);
+    for (let k = 0; k < n; k++) {
+      const o = A.createOscillator(); o.type = 'sawtooth';
+      const f = pitch * (Math.random() < 0.3 ? 1.65 : 1) * (0.88 + Math.random() * 0.24);
+      const st = w + Math.random() * 0.045;
+      o.frequency.setValueAtTime(f, st); o.frequency.linearRampToValueAtTime(f * glide, w + d + 0.2);
+      const og = A.createGain(); og.gain.value = 0.12; o.connect(og).connect(mix);
+      o.start(st); o.stop(w + d + 0.3); srcs.push(o);
+    }
+    const s = noiseSrc(), ng = A.createGain(); ng.gain.value = 0.25; s.connect(ng).connect(mix); s.start(w, Math.random() * 3); s.stop(w + d + 0.3);
+  }
+
+  // ---- timeline ----
+  // 0–3 intro
+  [0.4, 0.6, 0.8, 1.0].forEach(T => boom(T, 0.8)); boom(1.3); crash(1.3);
+  shout(1.3, 'o', 1.2, 200, 0.25, 14, 0.85);
+  // 3–6 centenary
+  YEARS.forEach((y, i) => tick(3.1 + inOutCubicInv((y - 1930) / 100) * 1.2));
+  [4.5, 4.62, 4.74].forEach(T => boom(T, 0.9)); crash(4.5, 0.25);
+  // 6–9 대~한민국 짝짝 짝 짝짝
+  shout(6.0, 'ae', 0.45, 250, 0.6, 16, 0.9); kick(6.0);
+  shout(6.5, 'a', 0.17, 230, 0.55, 16, 0.95);
+  shout(6.75, 'i', 0.17, 230, 0.55, 16, 0.95);
+  shout(7.0, 'u', 0.25, 215, 0.6, 16, 0.88); kick(7.0);
+  CLAPS.forEach(c => { clap(6 + c, 0.8); kick(6 + c, 0.5); });
+  // 9–15.5 SON
+  boom(9.0); crash(9.0, 0.2);
+  whistle(10.2, 0.35);
+  for (let T = 10.5, dt = 0.2; T < 11.55; T += dt, dt = Math.max(0.05, dt * 0.85)) snare(T);
+  thump(11.6);
+  swish(12.1); boom(12.1, 1.2); crash(12.1, 0.45);
+  shout(12.12, 'a', 2.2, 230, 0.55, 20, 0.85);
+  [12.25, 12.3, 12.35, 12.4].forEach(T => kick(T, 0.7));
+  horn(12.5, 0.6); horn(13.2, 0.5, 247); horn(13.8, 0.9);
+  shutter(14.2); boom(14.2, 0.6);
+  // 15.5–22 LEE
+  boom(15.5); crash(15.5, 0.2);
+  whistle(16.4, 0.3);
+  thump(17.6);
+  shout(17.62, 'o', 0.7, 200, 0.25, 10, 1.1);
+  swish(18.5); boom(18.5, 1.2); crash(18.5, 0.45);
+  shout(18.52, 'a', 2.3, 235, 0.55, 20, 0.85);
+  [18.75, 18.83, 18.91, 18.99].forEach(T => kick(T, 0.8));
+  horn(19.0, 0.6, 247); horn(19.7, 0.5); horn(20.3, 1.0, 233);
+  // 22–27 오 필승 코리아 (spoken chant rhythm with drums)
+  [22, 24.5].forEach(c0 => {
+    const S = [['o', 0, 0.55], ['i', 0.75, 0.16], ['eu', 1.0, 0.2], ['o', 1.5, 0.16], ['i', 1.75, 0.16], ['a', 2.0, 0.35]];
+    S.forEach(([v, st, d]) => { shout(c0 + st, v, d, 225, 0.6, 16, 0.93); kick(c0 + st, 0.9); });
+    [0.5, 1.25, 2.25].forEach(st => snare(c0 + st));
+  });
+  crash(24.5, 0.3);
+  // 27–30 end
+  boom(27); crash(27, 0.4);
+  whistle(28.0, 0.25); whistle(28.35, 0.25); whistle(28.7, 0.8);
+  shout(28.7, 'a', 1.0, 230, 0.4, 18, 0.85);
+  return t0;
+}
+// inverse of the year counter easing (for tick timing)
+function inOutCubicInv(y) { let lo = 0, hi = 1; for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; inOutCubic(m) < y ? lo = m : hi = m; } return lo; }
+
+// =====================================================================
+//  PLAYBACK / EXPORT
+// =====================================================================
+const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time'),
+      recBtn = document.getElementById('rec'), status = document.getElementById('status'), startBtn = document.getElementById('start'),
+      muteBtn = document.getElementById('mute');
+let playing = false, offset = 1.6, t0AC = 0, recording = false;
+const curT = () => playing ? offset + Math.max(0, AC.currentTime - t0AC) : offset;
+
+function play(from) {
+  initAudio(); AC.resume();
+  offset = from; t0AC = startAudio(from); playing = true;
+  playBtn.textContent = '⏸ 일시정지'; startBtn.style.display = 'none';
+}
+function pause() { offset = curT(); stopAudio(); playing = false; playBtn.textContent = '▶ 재생'; }
+
+let exporting = false;
+function frame() {
+  if (exporting) { requestAnimationFrame(frame); return; }
+  let t = curT();
+  if (t >= DUR) {
+    if (recording) t = DUR - 0.001;
+    else { play(0); t = 0; }
+  }
+  render(t);
+  scrub.value = t; timeEl.textContent = t.toFixed(2) + 's';
+  requestAnimationFrame(frame);
+}
+startBtn.onclick = () => play(0);
+playBtn.onclick = () => playing ? pause() : play(offset >= DUR ? 0 : offset);
+document.getElementById('restart').onclick = () => play(0);
+scrub.oninput = () => { if (playing) pause(); offset = +scrub.value; startBtn.style.display = 'none'; };
+muteBtn.onclick = () => { initAudio(); muted = !muted; MASTER.gain.value = muted ? 0 : 0.85; muteBtn.textContent = muted ? '🔇 소리 끔' : '🔊 소리 켬'; };
+
+// =====================================================================
+//  FRAME-ACCURATE MP4 EXPORT  (WebCodecs + built-in MP4 muxer)
+//  Renders every frame at exact timestamps and the audio offline, so the
+//  file never stutters or freezes regardless of PC speed or tab focus.
+// =====================================================================
+const FPS = 60, SR = 48000;
+const toU8 = d => d instanceof ArrayBuffer ? new Uint8Array(d.slice(0)) : new Uint8Array(d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength));
+
+async function renderAudioOffline() {
+  const off = new OfflineAudioContext(2, SR * DUR, SR);
+  const comp = off.createDynamicsCompressor();
+  comp.threshold.value = -16; comp.ratio.value = 5; comp.attack.value = 0.004; comp.release.value = 0.2;
+  const m = off.createGain(); m.gain.value = 0.85; m.connect(comp); comp.connect(off.destination);
+  const len = SR * 4, nb = off.createBuffer(2, len, SR);
+  for (let ch = 0; ch < 2; ch++) { const d = nb.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1; }
+  startAudio(0, off, m, nb, false);
+  return off.startRendering();
+}
+
+async function encodeAudio(buf) {
+  const chunks = []; let desc = null, err = null;
+  const enc = new AudioEncoder({
+    output: (c, meta) => { if (meta?.decoderConfig?.description) desc = toU8(meta.decoderConfig.description); const b = new Uint8Array(c.byteLength); c.copyTo(b); chunks.push(b); },
+    error: e => err = e,
+  });
+  enc.configure({ codec: 'mp4a.40.2', sampleRate: SR, numberOfChannels: 2, bitrate: 192000 });
+  const L = buf.getChannelData(0), R = buf.getChannelData(1), step = 4800;
+  for (let i = 0; i < buf.length; i += step) {
+    const n = Math.min(step, buf.length - i), data = new Float32Array(n * 2);
+    data.set(L.subarray(i, i + n), 0); data.set(R.subarray(i, i + n), n);
+    const ad = new AudioData({ format: 'f32-planar', sampleRate: SR, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round(i / SR * 1e6), data });
+    enc.encode(ad); ad.close();
+  }
+  await enc.flush(); enc.close();
+  if (err) throw err;
+  return { chunks, desc: desc || new Uint8Array([0x11, 0x90]) }; // AAC-LC 48kHz stereo
+}
+
+async function encodeVideo(onProgress) {
+  const base = { width: W, height: H, bitrate: 20_000_000, framerate: FPS, avc: { format: 'avc' } };
+  let cfg = null;
+  for (const codec of ['avc1.42002a', 'avc1.4d002a', 'avc1.640032']) {
+    const s = await VideoEncoder.isConfigSupported({ ...base, codec });
+    if (s.supported) { cfg = { ...base, codec }; break; }
+  }
+  if (!cfg) throw new Error('H.264 인코더를 사용할 수 없습니다');
+  const chunks = []; let desc = null, err = null;
+  const enc = new VideoEncoder({
+    output: (c, meta) => { if (meta?.decoderConfig?.description) desc = toU8(meta.decoderConfig.description); const b = new Uint8Array(c.byteLength); c.copyTo(b); chunks.push({ data: b, key: c.type === 'key', ts: c.timestamp }); },
+    error: e => err = e,
+  });
+  enc.configure(cfg);
+  const total = DUR * FPS;
+  for (let i = 0; i < total; i++) {
+    if (err) throw err;
+    render(i / FPS);
+    const fr = new VideoFrame(cv, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
+    enc.encode(fr, { keyFrame: i % FPS === 0 }); fr.close();
+    while (enc.encodeQueueSize > 6) await new Promise(r => setTimeout(r, 2));
+    if (i % 15 === 0) { onProgress(i / total); await new Promise(r => setTimeout(r, 0)); }
+  }
+  await enc.flush(); enc.close();
+  if (err) throw err;
+  return { chunks, desc };
+}
+
+function muxMP4(v, a) {
+  const te = new TextEncoder();
+  const u32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const u16 = n => [(n >> 8) & 255, n & 255];
+  const cat = parts => {
+    const arrs = parts.map(p => p instanceof Uint8Array ? p : new Uint8Array(p));
+    const out = new Uint8Array(arrs.reduce((s, x) => s + x.length, 0)); let o = 0;
+    for (const x of arrs) { out.set(x, o); o += x.length; } return out;
+  };
+  const box = (type, ...parts) => { const body = cat(parts), out = new Uint8Array(8 + body.length); out.set(u32(out.length)); out.set(te.encode(type), 4); out.set(body, 8); return out; };
+  const full = (type, ver, flags, ...parts) => box(type, [ver, (flags >> 16) & 255, (flags >> 8) & 255, flags & 255], ...parts);
+  const MATRIX = [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000].flatMap(u32);
+  const desc = (tag, bytes) => [tag, 0x80, 0x80, 0x80, bytes.length, ...bytes];
+
+  const vN = v.chunks.length, aN = a.chunks.length;
+  const vDurMs = Math.round(vN / FPS * 1000), aDurMs = Math.round(aN * 1024 / SR * 1000);
+  // interleave samples by time
+  const samples = [];
+  v.chunks.forEach((c, i) => samples.push({ tr: 'v', i, t: i / FPS, data: c.data }));
+  a.chunks.forEach((d, i) => samples.push({ tr: 'a', i, t: i * 1024 / SR, data: d }));
+  samples.sort((x, y) => x.t - y.t || (x.tr === 'v' ? -1 : 1));
+  const rel = { v: new Array(vN), a: new Array(aN) }; let pos = 0;
+  for (const s of samples) { rel[s.tr][s.i] = pos; pos += s.data.length; }
+
+  // composition offsets (only needed if the encoder emitted B-frames)
+  const frameTs = v.chunks.map(c => Math.round(c.ts * FPS / 1e6));
+  const cts = frameTs.map((p, i) => p - i), needCtts = cts.some(x => x !== 0);
+
+  const moov = start => {
+    const vtrak = box('trak',
+      full('tkhd', 0, 3, u32(0), u32(0), u32(1), u32(0), u32(vDurMs), u32(0), u32(0), u16(0), u16(0), u16(0), u16(0), MATRIX, u32(W * 65536), u32(H * 65536)),
+      box('mdia',
+        full('mdhd', 0, 0, u32(0), u32(0), u32(FPS), u32(vN), u16(0x55c4), u16(0)),
+        full('hdlr', 0, 0, u32(0), te.encode('vide'), u32(0), u32(0), u32(0), te.encode('VideoHandler\0')),
+        box('minf',
+          full('vmhd', 0, 1, u16(0), u16(0), u16(0), u16(0)),
+          box('dinf', full('dref', 0, 0, u32(1), full('url ', 0, 1))),
+          box('stbl',
+            full('stsd', 0, 0, u32(1), box('avc1', [0, 0, 0, 0, 0, 0], u16(1), u16(0), u16(0), u32(0), u32(0), u32(0), u16(W), u16(H),
+              u32(0x00480000), u32(0x00480000), u32(0), u16(1), new Uint8Array(32), u16(0x18), u16(0xffff), box('avcC', v.desc))),
+            full('stts', 0, 0, u32(1), u32(vN), u32(1)),
+            ...(needCtts ? [full('ctts', 1, 0, u32(vN), ...cts.flatMap(o => [...u32(1), ...u32(o >>> 0)]))] : []),
+            full('stss', 0, 0, ...(() => { const k = []; v.chunks.forEach((c, i) => c.key && k.push(i + 1)); return [u32(k.length), k.flatMap(u32)]; })()),
+            full('stsc', 0, 0, u32(1), u32(1), u32(1), u32(1)),
+            full('stsz', 0, 0, u32(0), u32(vN), v.chunks.flatMap(c => u32(c.data.length))),
+            full('stco', 0, 0, u32(vN), rel.v.flatMap(o => u32(start + o)))))));
+    const asc = [...a.desc];
+    const esds = full('esds', 0, 0, desc(3, [...u16(2), 0,
+      ...desc(4, [0x40, 0x15, 0, 0, 0, ...u32(192000), ...u32(192000), ...desc(5, asc)]),
+      ...desc(6, [2])]));
+    const atrak = box('trak',
+      full('tkhd', 0, 3, u32(0), u32(0), u32(2), u32(0), u32(aDurMs), u32(0), u32(0), u16(0), u16(1), u16(0x0100), u16(0), MATRIX, u32(0), u32(0)),
+      box('mdia',
+        full('mdhd', 0, 0, u32(0), u32(0), u32(SR), u32(aN * 1024), u16(0x55c4), u16(0)),
+        full('hdlr', 0, 0, u32(0), te.encode('soun'), u32(0), u32(0), u32(0), te.encode('SoundHandler\0')),
+        box('minf',
+          full('smhd', 0, 0, u16(0), u16(0)),
+          box('dinf', full('dref', 0, 0, u32(1), full('url ', 0, 1))),
+          box('stbl',
+            full('stsd', 0, 0, u32(1), box('mp4a', [0, 0, 0, 0, 0, 0], u16(1), u32(0), u32(0), u16(2), u16(16), u16(0), u16(0), u32(SR * 65536), esds)),
+            full('stts', 0, 0, u32(1), u32(aN), u32(1024)),
+            full('stsc', 0, 0, u32(1), u32(1), u32(1), u32(1)),
+            full('stsz', 0, 0, u32(0), u32(aN), a.chunks.flatMap(d => u32(d.length))),
+            full('stco', 0, 0, u32(aN), rel.a.flatMap(o => u32(start + o)))))));
+    return box('moov',
+      full('mvhd', 0, 0, u32(0), u32(0), u32(1000), u32(Math.max(vDurMs, aDurMs)), u32(0x00010000), u16(0x0100), u16(0), u32(0), u32(0), MATRIX, new Uint8Array(24), u32(3)),
+      vtrak, atrak);
+  };
+  const ftyp = box('ftyp', te.encode('isom'), u32(512), te.encode('isom'), te.encode('iso2'), te.encode('avc1'), te.encode('mp41'));
+  const size = moov(0).length;                       // moov size doesn't depend on offsets
+  const mv = moov(ftyp.length + size + 8);           // faststart: ftyp, moov, mdat
+  const mdatHdr = new Uint8Array([...u32(8 + pos), ...te.encode('mdat')]);
+  return new Blob([ftyp, mv, mdatHdr, ...samples.map(s => s.data)], { type: 'video/mp4' });
+}
+
+async function exportMP4() {
+  if (playing) pause();
+  exporting = true; recBtn.disabled = true;
+  try {
+    status.textContent = '소리 합성 중…';
+    const abuf = await renderAudioOffline();
+    status.textContent = '소리 인코딩 중…';
+    const aud = await encodeAudio(abuf);
+    const vid = await encodeVideo(p => status.textContent = `영상 인코딩 중… ${Math.round(p * 100)}%`);
+    status.textContent = 'MP4 파일 만드는 중…';
+    const blob = muxMP4(vid, aud);
+    window.__lastExport = blob;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'worldcup2030_kinetic_1920x1080.mp4'; a.click();
+    status.textContent = `저장 완료: worldcup2030_kinetic_1920x1080.mp4 (${(blob.size / 1e6).toFixed(1)}MB, 30초 · 60fps)`;
+    return blob;
+  } catch (e) {
+    console.error(e);
+    status.textContent = 'MP4 변환 실패: ' + e.message;
+    throw e;
+  } finally {
+    exporting = false; recBtn.disabled = false; offset = 0; render(0);
+  }
+}
+
+recBtn.onclick = () => {
+  if (recording || exporting) return;
+  if (window.VideoEncoder && window.AudioEncoder && window.VideoFrame) { exportMP4().catch(() => {}); return; }
+  recordRealtime();
+};
+
+// fallback: real-time recording (browsers without WebCodecs)
+function recordRealtime() {
+  if (recording) return;
+  initAudio();
+  const types = ['video/mp4;codecs=avc1.640033,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+  const mime = types.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m));
+  if (!mime) { status.textContent = '이 브라우저는 영상 녹화를 지원하지 않습니다. Chrome/Edge를 사용하세요.'; return; }
+  if (muted) muteBtn.click();
+  const stream = new MediaStream([...cv.captureStream(60).getVideoTracks(), ...REC_DEST.stream.getAudioTracks()]);
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 24_000_000, audioBitsPerSecond: 256_000 });
+  const chunks = [];
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  rec.onstop = () => {
+    recording = false; recBtn.disabled = false;
+    const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
+    const blob = new Blob(chunks, { type: mime.split(';')[0] });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `worldcup2030_kinetic_1920x1080.${ext}`; a.click();
+    status.textContent = `저장 완료: worldcup2030_kinetic_1920x1080.${ext} (${(blob.size / 1e6).toFixed(1)}MB)`;
+    play(0);
+  };
+  recording = true; recBtn.disabled = true;
+  play(0);
+  setTimeout(() => rec.start(), 40);
+  status.textContent = '녹화 중… (30초) 이 탭을 활성 상태로 유지하세요.';
+  setTimeout(() => rec.stop(), DUR * 1000 + 200);
+};
+
+render(1.5);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
