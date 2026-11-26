@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스탑워치</title>
+<style>
+  :root { --ink:#e9eef5; --muted:rgba(200,215,235,.55); --line:rgba(170,200,240,.16); --sky:#7cc4ff; --warm:#ff7a59; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:#02040a; color:var(--ink); }
+  body { min-height:100vh; font-family:-apple-system,"Segoe UI","Malgun Gothic",sans-serif; display:flex; justify-content:center; padding:clamp(20px,5vh,56px) 20px 48px; }
+  #stars { position:fixed; inset:0; width:100%; height:100%; z-index:-1; }
+  .wrap { width:100%; max-width:420px; display:flex; flex-direction:column; align-items:center; }
+  .stage { position:relative; width:min(84vw,340px); aspect-ratio:1; }
+  #earth { position:absolute; left:15%; top:15%; width:70%; height:70%; border-radius:50%;
+    box-shadow:0 0 30px 6px rgba(90,160,255,.35), 0 0 80px 20px rgba(60,120,255,.12); }
+  .stage svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+  .orbit { fill:none; stroke:var(--line); stroke-width:.6; }
+  .tick { stroke:rgba(200,220,255,.35); stroke-linecap:round; }
+  .num { fill:var(--muted); font-size:6px; letter-spacing:1px; text-anchor:middle; dominant-baseline:central; }
+  .trail { fill:none; stroke:var(--sky); stroke-width:1.4; opacity:.5; stroke-linecap:round; }
+  .marker { fill:var(--sky); opacity:.5; } .marker.latest { opacity:1; }
+  .plane path { fill:#f4f8ff; }
+  .plane .nav { fill:#ff5a5a; animation:blink 1.2s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+  .contrail line { stroke:#fff; stroke-linecap:round; }
+  .sat { fill:#fff; filter:drop-shadow(0 0 3px #bfe3ff) drop-shadow(0 0 6px var(--sky)); }
+  .readout { margin:26px 0 4px; font-variant-numeric:tabular-nums; font-weight:200; font-size:clamp(52px,15vw,70px); letter-spacing:-1px; line-height:1; text-shadow:0 0 24px rgba(124,196,255,.25); }
+  .readout .cs { font-size:.6em; color:var(--muted); }
+  .status { height:20px; font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .status b { color:var(--ink); font-weight:500; }
+  .pushers { width:100%; display:flex; justify-content:space-between; align-items:center; margin:22px 0 30px; padding:0 12px; }
+  .pusher { width:80px; height:80px; border-radius:50%; border:1px solid var(--line); background:rgba(255,255,255,.06);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); color:var(--ink); font:500 15px/1 inherit; font-family:inherit; cursor:pointer;
+    transition:transform .1s, background-color .2s, opacity .2s; }
+  .pusher:active:not(:disabled) { transform:scale(.94); }
+  .pusher:disabled { opacity:.3; cursor:default; }
+  .pusher:focus-visible { outline:2px solid var(--sky); outline-offset:4px; }
+  .pusher.go { background:var(--sky); border-color:var(--sky); color:#02101f; box-shadow:0 0 24px rgba(124,196,255,.45); }
+  .pusher.halt { background:var(--warm); border-color:var(--warm); color:#fff; box-shadow:0 0 24px rgba(255,122,89,.4); }
+  .keys { font-size:12px; color:var(--muted); text-align:center; line-height:1.7; }
+  kbd { font-family:inherit; font-size:11px; border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 5px; color:var(--ink); }
+  .laps { width:100%; background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:14px; padding:6px 14px; backdrop-filter:blur(10px); }
+  .laps:empty { display:none; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  th { font-size:11px; font-weight:500; letter-spacing:.08em; color:var(--muted); text-align:right; padding:8px 2px; border-bottom:1px solid var(--line); }
+  th:first-child, td:first-child { text-align:left; }
+  td { padding:12px 2px; border-bottom:1px solid var(--line); text-align:right; font-size:16px; }
+  tr:last-child td { border-bottom:0; }
+  td.n, td.total, tr.live td { color:var(--muted); } td.n { font-size:14px; }
+  .tag { display:inline-block; margin-left:6px; padding:1px 6px; border-radius:9px; font-size:10.5px; vertical-align:2px; }
+  .tag.best { background:var(--sky); color:#02101f; } .tag.worst { border:1px solid var(--warm); color:var(--warm); }
+  .credit { margin-top:18px; font-size:10.5px; color:rgba(200,215,235,.35); }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<main class="wrap">
+  <div class="stage" aria-hidden="true">
+    <canvas id="earth"></canvas>
+    <svg viewBox="0 0 200 200">
+      <circle class="orbit" cx="100" cy="100" r="88"/>
+      <g id="ticks"></g>
+      <circle id="trail" class="trail" cx="100" cy="100" r="88"/>
+      <g id="markers"></g>
+      <g id="contrail" class="contrail"></g>
+      <g id="plane" class="plane" style="filter:drop-shadow(0 0 1.5px rgba(200,230,255,.8))">
+        <path d="M5,0 C5,-.6 4,-.8 3,-.8 L-4,-.6 L-5,-2.2 L-5.7,-2.2 L-5.1,0 L-5.7,2.2 L-5,2.2 L-4,.6 L3,.8 C4,.8 5,.6 5,0 Z"/>
+        <path d="M1.2,-.7 L-1.4,-4.8 L-2.5,-4.8 L-1.6,-.7 Z M1.2,.7 L-1.4,4.8 L-2.5,4.8 L-1.6,.7 Z"/>
+        <circle class="nav" cx="-2" cy="-4.6" r=".55"/>
+      </g>
+      <circle id="sat" class="sat" cx="100" cy="12" r="2.6"/>
+    </svg>
+  </div>
+  <div class="readout" id="readout" role="timer">00:00<span class="cs">.00</span></div>
+  <div class="status" id="status"></div>
+  <div class="pushers">
+    <button class="pusher" id="lapBtn" disabled>랩</button>
+    <div class="keys"><kbd>Space</kbd> 시작/정지<br><kbd>L</kbd> 랩 · <kbd>R</kbd> 초기화</div>
+    <button class="pusher go" id="startBtn">시작</button>
+  </div>
+  <div class="laps" id="laps"></div>
+  <div class="credit" id="credit">Earth imagery: NASA (public domain)</div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const polar = (r, deg) => { const a = deg*Math.PI/180; return [100 + r*Math.sin(a), 100 - r*Math.cos(a)]; };
+const svgEl = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+
+/* ---------- orbit dial ---------- */
+for (let s = 0; s < 60; s++) {
+  const major = s % 15 === 0, mid = s % 5 === 0;
+  const [x1,y1] = polar(92, s*6), [x2,y2] = polar(major ? 98 : mid ? 96 : 94, s*6);
+  svgEl('line', {x1,y1,x2,y2,class:'tick','stroke-width':major?1:mid?.6:.3}, $('ticks'));
+}
+[[0,'60'],[90,'15'],[180,'30'],[270,'45']].forEach(([d,t]) => { const [x,y] = polar(104, d); svgEl('text',{x,y,class:'num'},$('ticks')).textContent = t; });
+const TRAIL_C = 2*Math.PI*88;
+
+/* ---------- airplane: flies a tilted great circle just above the globe ---------- */
+const GLOBE_R = 70, FLY_R = 75, TILT = 62*Math.PI/180, SPIN = -24*Math.PI/180, LAP_MS = 18000, TRAIL_N = 16;
+const contrailLines = Array.from({length: TRAIL_N}, () => svgEl('line', {}, $('contrail')));
+function flightPoint(th) {
+  const x0 = Math.cos(th), y0 = -Math.sin(th)*Math.sin(TILT), z = Math.sin(th)*Math.cos(TILT);
+  const x = x0*Math.cos(SPIN) - y0*Math.sin(SPIN), y = x0*Math.sin(SPIN) + y0*Math.cos(SPIN);
+  const sx = 100 + x*FLY_R, sy = 100 + y*FLY_R;
+  const visible = z > 0 || Math.hypot(sx-100, sy-100) > GLOBE_R + 1.5;
+  return { x: sx, y: sy, z, visible };
+}
+function renderPlane(t) {
+  const th = (t / LAP_MS) * 2*Math.PI + 2.2;
+  const p = flightPoint(th), q = flightPoint(th + .01);
+  const plane = $('plane');
+  plane.style.opacity = p.visible ? 1 : 0;
+  const s = (.85 + .25*p.z) * 1.05;
+  plane.setAttribute('transform', `translate(${p.x} ${p.y}) rotate(${Math.atan2(q.y-p.y, q.x-p.x)*180/Math.PI}) scale(${s})`);
+  let prev = p;
+  contrailLines.forEach((ln, k) => {
+    const c = flightPoint(th - (k+1)*.028);
+    const show = prev.visible && c.visible;
+    ln.setAttribute('x1', prev.x); ln.setAttribute('y1', prev.y); ln.setAttribute('x2', c.x); ln.setAttribute('y2', c.y);
+    ln.setAttribute('stroke-width', .9 + k*.05);
+    ln.setAttribute('stroke-opacity', show ? .7*(1 - k/TRAIL_N) : 0);
+    prev = c;
+  });
+}
+
+/* ---------- stars ---------- */
+const sc = $('stars'), sx = sc.getContext('2d');
+let stars = [];
+function initStars() {
+  const d = devicePixelRatio || 1; sc.width = innerWidth*d; sc.height = innerHeight*d;
+  stars = Array.from({length: Math.round(innerWidth*innerHeight/2500)}, () => ({
+    x: Math.random()*sc.width, y: Math.random()*sc.height, r: (Math.random()**3*1.4+.3)*d, a: Math.random()*.7+.2, p: Math.random()*6.28 }));
+}
+function drawStars(t) {
+  sx.clearRect(0,0,sc.width,sc.height);
+  const drift = t*0.0004;
+  for (const s of stars) {
+    const x = (s.x + drift*s.r*20) % sc.width;
+    sx.globalAlpha = s.a * (s.r > 1.2 ? .7 + .3*Math.sin(performance.now()/700 + s.p) : 1);
+    sx.fillStyle = '#dfeaff'; sx.beginPath(); sx.arc(x, s.y, s.r, 0, 6.283); sx.fill();
+  }
+}
+addEventListener('resize', () => { initStars(); drawStars(now()); });
+initStars();
+
+/* ---------- earth (orthographic sphere from equirectangular textures) ---------- */
+const TW = 2048, TH = 1024;
+let dayPx = null, nightPx = null;
+const ec = $('earth'), ex = ec.getContext('2d');
+const D = Math.min(560, Math.round(ec.getBoundingClientRect().width * (devicePixelRatio||1)));
+ec.width = ec.height = D;
+const img = ex.createImageData(D, D), out = new Uint32Array(img.data.buffer);
+const L = (() => { const v=[-.62,.32,.72], m=Math.hypot(...v); return v.map(c=>c/m); })();
+const pix = [];  // [index, u0, v, light, rim]
+for (let y = 0; y < D; y++) for (let x = 0; x < D; x++) {
+  const nx = (x+.5)/D*2-1, ny = 1-(y+.5)/D*2, r2 = nx*nx+ny*ny;
+  if (r2 > 1) continue;
+  const nz = Math.sqrt(1-r2);
+  const lon = Math.atan2(nx, nz), lat = Math.asin(ny);
+  pix.push(y*D+x, (lon/(2*Math.PI)+.5)*TW, Math.min(TH-1, ((.5-lat/Math.PI)*TH)|0), nx*L[0]+ny*L[1]+nz*L[2], (1-nz)**3);
+}
+
+function texFrom(image) {
+  const c = document.createElement('canvas'); c.width = TW; c.height = TH;
+  const g = c.getContext('2d'); g.drawImage(image, 0, 0, TW, TH);
+  return g.getImageData(0, 0, TW, TH).data;
+}
+function proceduralTextures() {   // offline fallback: noise continents + fake city lights
+  const W = TW, H = TH, day = new Uint8ClampedArray(W*H*4), night = new Uint8ClampedArray(W*H*4);
+  const G = 64, grid = Array.from({length:(G+1)*(G/2+1)}, () => Math.random());
+  const n = (u,v) => { const x=u*G, y=v*G/2, i=x|0, j=y|0, fx=x-i, fy=y-j, s=t=>t*t*(3-2*t);
+    const at=(a,b)=>grid[(b)*(G+1)+(a%G)]; const a=at(i,j)+(at(i+1,j)-at(i,j))*s(fx), b=at(i,j+1)+(at(i+1,j+1)-at(i,j+1))*s(fx); return a+(b-a)*s(fy); };
+  for (let y=0;y<H;y++) for (let x=0;x<W;x++) {
+    const u=x/W, v=y/H; let h=0, amp=.5, f=1;
+    for (let o=0;o<5;o++){ h+=n((u*f)%1, Math.min(.999,v*f%1))*amp; amp/=2; f*=2; }
+    const k=(y*W+x)*4, polar=Math.abs(v-.5)>.42, land=h>.55;
+    const c = polar ? [235,240,245] : land ? [70+h*90, 95+h*60, 50] : [10, 40+h*30, 90+h*50];
+    day[k]=c[0]; day[k+1]=c[1]; day[k+2]=c[2];
+    const lit = land && !polar && Math.random() < (h-.55)*.6 ? 255 : 0;
+    night[k]=lit; night[k+1]=lit*.8; night[k+2]=lit*.5;
+  }
+  return [day, night];
+}
+function loadImg(src) { return new Promise((ok, no) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = no; i.src = src; }); }
+const BASE = 'https://thumb.wikimedia.org/wikipedia/commons/thumb/';
+Promise.all([
+  loadImg(BASE + '9/91/Land_shallow_topo_2048.jpg/3840px-Land_shallow_topo_2048.jpg'),
+  loadImg(BASE + "e/e1/Earth%27s_City_Lights_by_DMSP%2C_1994-1995_%28large%29.jpg/3840px-Earth%27s_City_Lights_by_DMSP%2C_1994-1995_%28large%29.jpg")
+]).then(([d, n]) => { dayPx = texFrom(d); nightPx = texFrom(n); drawEarth(now()); })
+  .catch(() => { [dayPx, nightPx] = proceduralTextures(); $('credit').textContent = '오프라인: 그린 지구로 표시 중'; drawEarth(now()); });
+
+function drawEarth(t) {
+  if (!dayPx) return;
+  const rot = (t / 300000 * TW + TW*0.62) % TW;   // one revolution per 5 minutes of elapsed time
+  for (let p = 0; p < pix.length; p += 5) {
+    let u = (pix[p+1] + rot) | 0; if (u >= TW) u -= TW;
+    const k = (pix[p+2]*TW + u) * 4, l = pix[p+3], rim = pix[p+4];
+    const day = Math.min(1, Math.max(0, (l + .08) / .25)), sh = Math.max(l, 0) * 1.15 + .04;
+    const nf = (1 - day) * 1.3;
+    let r = dayPx[k]*sh*day + nightPx[k]*nf, g = dayPx[k+1]*sh*day + nightPx[k+1]*nf*.85, b = dayPx[k+2]*sh*day + nightPx[k+2]*nf*.6;
+    const a = rim * (.35 + .65*day); r += (90-r)*a*.6; g += (160-g)*a*.7; b += (255-b)*a*.8;
+    out[pix[p]] = 0xff000000 | (Math.min(255,b)<<16) | (Math.min(255,g)<<8) | Math.min(255,r);
+  }
+  ex.putImageData(img, 0, 0);
+}
+
+/* ---------- stopwatch state ---------- */
+const KEY = 'stopwatch-space';
+let S = { running:false, start:0, elapsed:0, laps:[] };
+try { S = Object.assign(S, JSON.parse(localStorage.getItem(KEY)) || {}); } catch(e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} };
+const now = () => S.elapsed + (S.running ? Date.now() - S.start : 0);
+const lapTotal = () => S.laps.reduce((a,b) => a+b, 0);
+const p2 = n => String(n).padStart(2,'0');
+const fmt = ms => ({ main: (ms>=3600000 ? Math.floor(ms/3600000)+':' : '') + p2(Math.floor(ms/60000)%60) + ':' + p2(Math.floor(ms/1000)%60), cs: '.' + p2(Math.floor(ms/10)%100) });
+const fmtStr = ms => { const f = fmt(ms); return f.main + f.cs; };
+
+function renderClock() {
+  const t = now(), f = fmt(t);
+  $('readout').innerHTML = f.main + '<span class="cs">' + f.cs + '</span>';
+  const [cx, cy] = polar(88, (t % 60000) / 60000 * 360);
+  $('sat').setAttribute('cx', cx); $('sat').setAttribute('cy', cy);
+  renderPlane(t);
+  const base = lapTotal(), span = Math.min(t - base, 60000);
+  $('trail').setAttribute('stroke-dasharray', `${span/60000*TRAIL_C} ${TRAIL_C}`);
+  $('trail').setAttribute('transform', `rotate(${(base%60000)/60000*360 - 90} 100 100)`);
+  if (S.laps.length) {
+    const cur = t - base;
+    $('status').innerHTML = `랩 ${S.laps.length+1} · <b>${fmtStr(cur)}</b>`;
+    const live = document.querySelector('tr.live');
+    if (live) { live.children[1].textContent = fmtStr(cur); live.children[2].textContent = fmtStr(t); }
+  } else $('status').textContent = S.running ? '궤도 비행 중' : (t ? '일시정지' : '');
+  document.title = S.running || t ? f.main + ' · 스탑워치' : '스탑워치';
+}
+let raf = null;
+function frame() { const t = now(); renderClock(); drawEarth(t); drawStars(t); raf = requestAnimationFrame(frame); }
+
+function renderLaps() {
+  const g = $('markers'); g.innerHTML = ''; let acc = 0;
+  S.laps.forEach((l, i) => { acc += l; const last = i === S.laps.length-1; const [cx,cy] = polar(88, (acc%60000)/60000*360);
+    svgEl('circle', {cx, cy, r: last ? 2 : 1.4, class: 'marker' + (last ? ' latest' : '')}, g); });
+  if (!S.laps.length) { $('laps').innerHTML = ''; return; }
+  let best = -1, worst = -1;
+  if (S.laps.length >= 2) { best = S.laps.indexOf(Math.min(...S.laps)); worst = S.laps.indexOf(Math.max(...S.laps)); }
+  const totals = []; acc = 0; S.laps.forEach(l => totals.push(acc += l));
+  let rows = `<tr class="live"><td class="n">랩 ${S.laps.length+1}</td><td></td><td class="total"></td></tr>`;
+  for (let i = S.laps.length-1; i >= 0; i--) {
+    const tag = i === best ? '<span class="tag best">최고</span>' : i === worst ? '<span class="tag worst">최저</span>' : '';
+    rows += `<tr><td class="n">랩 ${i+1}${tag}</td><td>${fmtStr(S.laps[i])}</td><td class="total">${fmtStr(totals[i])}</td></tr>`;
+  }
+  $('laps').innerHTML = `<table><thead><tr><th>랩</th><th>구간</th><th>누적</th></tr></thead><tbody>${rows}</tbody></table>`;
+  renderClock();
+}
+function renderButtons() {
+  const t = now(), sb = $('startBtn'), lb = $('lapBtn');
+  sb.textContent = S.running ? '정지' : (t ? '계속' : '시작'); sb.className = 'pusher ' + (S.running ? 'halt' : 'go');
+  lb.textContent = S.running || !t ? '랩' : '초기화'; lb.disabled = !S.running && !t;
+}
+function toggle() {
+  if (S.running) { S.elapsed = now(); S.running = false; cancelAnimationFrame(raf); renderClock(); }
+  else { S.start = Date.now(); S.running = true; frame(); }
+  save(); renderButtons();
+}
+function lap() { if (!S.running) return; S.laps.push(now() - lapTotal()); save(); renderLaps(); }
+function reset() { if (S.running) return; S = { running:false, start:0, elapsed:0, laps:[] }; save(); renderLaps(); renderClock(); renderButtons(); drawEarth(0); drawStars(0); }
+
+$('startBtn').addEventListener('click', toggle);
+$('lapBtn').addEventListener('click', () => S.running ? lap() : reset());
+document.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (e.code === 'Space') { e.preventDefault(); toggle(); }
+  else if (e.code === 'KeyL') lap();
+  else if (e.code === 'KeyR') reset();
+});
+renderLaps(); renderClock(); renderButtons(); drawStars(now());
+if (S.running) frame();
+</script>
+</body>
+</html>
