@@ -1,0 +1,320 @@
+<!doctype html><html><head><meta charset='utf-8'><link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap'><style>* { margin: 0 }
+body { font: 32px/1.2 sans-serif; background:#888 }
+body > section { width: 1920px !important; height: 1080px !important; overflow: hidden !important; box-sizing: border-box !important; position: relative; isolation: isolate; margin-bottom:40px !important }
+section[hidden], aside, noscript { display: none !important }
+h1 { font-size: 96px; font-weight: 600 } h2 { font-size: 64px; font-weight: 600 } h3 { font-size: 44px; font-weight: 600 }
+p, li, h1, h2, h3, td, th { overflow-wrap: break-word; text-wrap: pretty }
+table { width: 100%; border-collapse: separate; border-spacing: 0; border: solid #0003; border-width: 2px 0 0 2px }
+th, td { padding: .35em .6em; text-align: left; border: solid #0003; border-width: 0 2px 2px 0 }
+.body > .chart, .body > .panel { animation: none !important }
+:root {
+  --ink: #1E2124;
+  --text: #3D4148;
+  --muted: #6B7079;
+  --paper: #FBFAF8;
+  --paper2: #F0EEEA;
+  --rule: #D5D3CE;
+  --red: #C8102E;
+  --grey: #A9ADB3;
+}
+body { font-family: 'Noto Sans KR', Arial, sans-serif; }
+section {
+  background: var(--paper);
+  color: var(--text);
+  font-family: 'Noto Sans KR', Arial, sans-serif;
+  padding: 128px 128px 160px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  counter-increment: page;
+}
+/* header */
+.tracker { font-size: 24px; font-weight: 700; color: var(--red); letter-spacing: 1px; margin: 0 0 12px; }
+.title { font-size: 48px; font-weight: 700; line-height: 1.3; color: var(--ink); margin: 0; padding-bottom: 22px; border-bottom: 2px solid var(--ink); }
+.body { display: flex; gap: 56px; margin-top: 36px; flex: 1; }
+/* footer */
+.foot { position: absolute; left: 128px; bottom: 64px; width: 1664px; display: flex; justify-content: space-between; align-items: center; }
+.foot .src { font-size: 24px; color: var(--muted); margin: 0; }
+.foot .pg { font-size: 24px; color: var(--muted); margin: 0; font-weight: 700; }
+.foot .pg::after { content: counter(page); }
+/* chart common */
+.chart { flex: 1; display: flex; flex-direction: column; }
+.chart-title { font-size: 24px; font-weight: 700; color: var(--ink); margin: 0 0 8px; }
+.legend { display: flex; gap: 32px; align-items: center; margin-bottom: 8px; }
+.key { display: flex; gap: 10px; align-items: center; }
+.key .sw { width: 22px; height: 22px; }
+.key .lab { font-size: 24px; color: var(--text); margin: 0; }
+.sw.red, .bar.red { background: var(--red); }
+.sw.grey, .bar.grey { background: var(--grey); }
+.bar.ink { background: var(--ink); }
+.val { font-size: 24px; color: var(--ink); margin: 0; text-align: center; font-weight: 500; }
+.val.redt { color: var(--red); font-weight: 700; }
+.axis-lab { font-size: 24px; color: var(--text); margin: 0; text-align: center; }
+/* grouped bars with negative zone (m1) */
+.gchart { display: flex; align-items: flex-end; flex: 1; }
+.gcol { flex: 1; display: flex; flex-direction: column; align-items: stretch; }
+.gcol .tot { font-size: 24px; font-weight: 700; color: var(--ink); margin: 0 0 6px; text-align: center; }
+.pos { height: 280px; display: flex; align-items: flex-end; justify-content: center; gap: 10px; }
+.neg { height: 60px; display: flex; align-items: flex-start; justify-content: center; gap: 10px; border-top: 2px solid var(--ink); }
+.slot { width: 64px; display: flex; flex-direction: column; align-items: center; }
+.slot .bar { width: 54px; }
+/* waterfall (m2) */
+.wchart { display: flex; flex: 1; align-items: flex-end; }
+.wcol { flex: 1; display: flex; flex-direction: column; align-items: stretch; }
+.wplot { height: 360px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; border-bottom: 2px solid var(--ink); }
+.wplot .bar { width: 76px; }
+.wcol .axis-lab { margin-top: 10px; line-height: 1.3; }
+/* horizontal rows (m4, m5) */
+.hrow { display: flex; align-items: center; height: 46px; }
+.hrow .nm { font-size: 24px; color: var(--ink); margin: 0; width: 200px; }
+.hrow .nm.hl { color: var(--red); font-weight: 700; }
+.hrow .fig { font-size: 24px; color: var(--text); margin: 0; width: 200px; }
+.hrow .fig.hl { color: var(--red); font-weight: 700; }
+.negz { width: 220px; display: flex; justify-content: flex-end; align-items: center; gap: 10px; height: 46px; }
+.posz { flex: 1; display: flex; justify-content: flex-start; align-items: center; gap: 10px; height: 46px; border-left: 2px solid var(--ink); }
+.hrow .bar { height: 30px; }
+.hrow .v { font-size: 24px; margin: 0; color: var(--ink); font-weight: 500; }
+.hrow .v.hl { color: var(--red); font-weight: 700; }
+.hrow.total { border-bottom: 2px solid var(--rule); margin-bottom: 8px; }
+.hrow.total .nm, .hrow.total .fig, .hrow.total .v { font-weight: 700; color: var(--ink); }
+/* summary rows */
+.srow { display: flex; align-items: center; gap: 32px; border-top: 2px solid var(--rule); padding: 16px 0; }
+.srow .num { font-size: 48px; font-weight: 900; color: var(--red); margin: 0; width: 56px; }
+.srow .mid { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.srow .msg { font-size: 32px; font-weight: 700; color: var(--ink); margin: 0; line-height: 1.35; }
+.srow .act { font-size: 24px; color: var(--muted); margin: 0; line-height: 1.4; }
+.srow .kpi { font-size: 24px; font-weight: 700; color: var(--red); margin: 0; width: 360px; text-align: right; }
+/* cards (extra, method) */
+.cards { display: flex; gap: 32px; margin-top: 36px; }
+.card { flex: 1; background: var(--paper2); padding: 32px 36px; display: flex; flex-direction: column; gap: 14px; border-top: 6px solid var(--ink); }
+.card.redtop { border-top: 6px solid var(--red); }
+.card .ck { font-size: 24px; font-weight: 700; color: var(--red); margin: 0; }
+.card .ch { font-size: 32px; font-weight: 700; color: var(--ink); margin: 0; line-height: 1.35; }
+.card .cb { font-size: 24px; color: var(--text); margin: 0; line-height: 1.5; }
+.card .cn { font-size: 64px; font-weight: 900; color: var(--ink); margin: 0; line-height: 1.1; }
+/* takeaway panel */
+.panel { width: 640px; background: var(--paper2); padding: 32px 36px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box; }
+.panel .ph { font-size: 32px; font-weight: 700; color: var(--ink); margin: 0; line-height: 1.35; }
+.panel .pt { font-size: 24px; line-height: 1.5; margin: 0; color: var(--text); }
+.panel .so { font-size: 24px; line-height: 1.5; margin: 0; color: var(--ink); font-weight: 700; }
+.panel .lbl { font-size: 24px; font-weight: 700; color: var(--red); margin: 0; }
+.cause { display: flex; gap: 14px; align-items: flex-start; }
+.panel .tag { font-size: 24px; font-weight: 700; padding: 0 12px; border-radius: 4px; margin: 0; white-space: nowrap; line-height: 1.5; }
+.panel .tag.ok { background: var(--ink); color: var(--paper); border: 2px solid var(--ink); }
+.panel .tag.est { background: var(--paper); color: var(--ink); border: 2px solid var(--ink); }
+.panel hr { border: none; border-top: 2px solid var(--rule); margin: 0; }
+/* motion */
+@keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+.body > .chart { animation: rise 500ms ease-out both; }
+.body > .panel { animation: rise 500ms ease-out 250ms both; }
+</style></head><body><section id="cover" style="background:#C8102E;color:#FBFAF8;justify-content:space-between;padding:128px">
+<div style="display:flex;flex-direction:column;gap:20px">
+<p style="font-size:24px;font-weight:700;letter-spacing:2px;margin:0;color:#FBFAF8">경영진 보고 · 탐색적 데이터 분석</p>
+<div style="width:120px;height:6px;background:#FBFAF8"></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:32px">
+<h1 style="font-size:96px;font-weight:900;line-height:1.2;margin:0;color:#FBFAF8">피자 프랜차이즈<br>9개 매장 실적 진단</h1>
+<p style="font-size:32px;line-height:1.5;margin:0;color:#FBFAF8;max-width:1300px">성장은 이어졌지만 그 동력과 이익 구조가 바뀌고 있다: 경영진이 지금 결정해야 할 다섯 가지</p>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:flex-end">
+<p style="font-size:24px;margin:0;color:#FBFAF8">분석 기간 2020-01 ~ 2026-08 · 매장·월 720건(실적)</p>
+<p style="font-size:24px;margin:0;color:#FBFAF8">2026년 11월</p>
+</div>
+<aside>이 덱은 9개 매장의 월별 실적을 매장·월 단위로 중복 제거한 뒤, 사건로그와 대조해 원인이 확인된 것과 추정인 것을 나눠 정리했습니다. 데이터는 실습용 가상 데이터입니다.</aside>
+</section>
+
+<section id="summary">
+<p class="tracker">핵심 요약</p>
+<h2 class="title">성장 동력과 이익 구조를 함께 손봐야 한다</h2>
+<div style="display:flex;flex-direction:column;margin-top:24px">
+<div class="srow"><p class="num">1</p><div class="mid"><p class="msg">매출 성장은 객단가가 끌었고, 주문 수는 2022년 이후 정체</p><p class="act">주문 수(신규·빈도) 성장 계획 수립, 객단가 상승 원인 POS 검증</p></div><p class="kpi">주문 −1% · 객단가 +19%</p></div>
+<div class="srow"><p class="num">2</p><div class="mid"><p class="msg">인건비 비중 상승이 이익률을 2022년 정점에서 끌어내림</p><p class="act">피크 시간대 중심 인력 배치, 서면점 주방 개선 사례 확산</p></div><p class="kpi">인건비율 24.5% → 29.0%</p></div>
+<div class="srow"><p class="num">3</p><div class="mid"><p class="msg">자사앱은 6배 컸지만 외부 배달앱 의존도 43%는 그대로</p><p class="act">자사앱 목표를 ‘배달 주문 전환 수’로 바꾸고 쿠폰을 배달 고객에 집중</p></div><p class="kpi">외부앱 건당 수수료 +21%</p></div>
+<div class="srow"><p class="num">4</p><div class="mid"><p class="msg">충장로·연동점만 이익률 후퇴, 공통 원인은 인력 이탈</p><p class="act">담당 SV 권역 지원 강화, 두 매장 턴어라운드 계획 수립</p></div><p class="kpi">−2.3%p · −1.6%p</p></div>
+<div class="srow" style="border-bottom:2px solid #D5D3CE"><p class="num">5</p><div class="mid"><p class="msg">위생·QSC 점수가 고객 반응을 설명하지 못함</p><p class="act">클레임·리뷰·재방문과 연결된 품질 지표로 재설계</p></div><p class="kpi">위생 B 50% · 상관 0.06</p></div>
+</div>
+<div class="foot"><p class="src">출처: 매출데이터(매장·월 720건, 2020-01~2026-08 실적), 사건로그 39건</p><p class="pg"></p></div>
+<aside>다섯 가지 시사점을 한 장으로 정리했습니다. 1~2번은 체인 전체의 성장과 수익 구조, 3번은 채널, 4번은 매장, 5번은 운영 관리 지표에 관한 이야기입니다.</aside>
+</section>
+
+<section id="m1">
+<p class="tracker">시사점 1 / 5 · 성장의 질</p>
+<h2 class="title">매출 성장의 동력이 주문 수에서 객단가로 바뀌었고, 2024년부터는 주문 수가 줄고 있다</h2>
+<div class="body">
+<div class="chart">
+<p class="chart-title">체인 매출 성장률 분해, 전년 대비 (%)</p>
+<div class="legend"><div class="key"><div class="sw grey"></div><p class="lab">주문 수 증감</p></div><div class="key"><div class="sw red"></div><p class="lab">객단가 증감</p></div></div>
+<div class="gchart">
+<div class="gcol"><p class="tot">매출 +18.4%</p><div class="pos"><div class="slot"><p class="val">17.3</p><div class="bar grey" style="height:242px"></div></div><div class="slot"><p class="val redt">0.9</p><div class="bar red" style="height:13px"></div></div></div><div class="neg"><div class="slot"></div><div class="slot"></div></div><p class="axis-lab">2021</p></div>
+<div class="gcol"><p class="tot">+12.6%</p><div class="pos"><div class="slot"><p class="val">7.8</p><div class="bar grey" style="height:109px"></div></div><div class="slot"><p class="val redt">4.5</p><div class="bar red" style="height:63px"></div></div></div><div class="neg"><div class="slot"></div><div class="slot"></div></div><p class="axis-lab">2022</p></div>
+<div class="gcol"><p class="tot">+6.8%</p><div class="pos"><div class="slot"><p class="val">1.8</p><div class="bar grey" style="height:25px"></div></div><div class="slot"><p class="val redt">4.9</p><div class="bar red" style="height:69px"></div></div></div><div class="neg"><div class="slot"></div><div class="slot"></div></div><p class="axis-lab">2023</p></div>
+<div class="gcol"><p class="tot">+5.4%</p><div class="pos"><div class="slot"></div><div class="slot"><p class="val redt">7.4</p><div class="bar red" style="height:104px"></div></div></div><div class="neg"><div class="slot"><div class="bar grey" style="height:25px"></div><p class="val">−1.8</p></div><div class="slot"></div></div><p class="axis-lab">2024</p></div>
+<div class="gcol"><p class="tot">+4.0%</p><div class="pos"><div class="slot"></div><div class="slot"><p class="val redt">5.2</p><div class="bar red" style="height:73px"></div></div></div><div class="neg"><div class="slot"><div class="bar grey" style="height:17px"></div><p class="val">−1.2</p></div><div class="slot"></div></div><p class="axis-lab">2025</p></div>
+<div class="gcol"><p class="tot">+5.9%</p><div class="pos"><div class="slot"><p class="val">2.4</p><div class="bar grey" style="height:34px"></div></div><div class="slot"><p class="val redt">3.4</p><div class="bar red" style="height:48px"></div></div></div><div class="neg"><div class="slot"></div><div class="slot"></div></div><p class="axis-lab">2026 1~8월</p></div>
+</div>
+</div>
+<div class="panel">
+<p class="ph">2022→2025년 매출 +17% 중 주문 수 기여는 사실상 0</p>
+<div class="cause"><p class="tag est">추정</p><p class="pt">메뉴 가격 변경 기록이 없고 카테고리 비중도 그대로라, 객단가가 오른 이유는 데이터로 설명되지 않음</p></div>
+<div class="cause"><p class="tag ok">확인</p><p class="pt">월 주문 30,824건(2022) → 30,460건(2025)</p></div>
+<p class="lbl">시사점</p>
+<p class="so">객단가 상승에는 한계가 있다. 신규 고객·주문 빈도 성장 계획을 세우고, 객단가 상승 원인은 POS로 검증해야 한다</p>
+</div>
+</div>
+<div class="foot"><p class="src">출처: 매출데이터, 연간 합계. 객단가 증감 = (1+매출 증감)÷(1+주문 증감)−1. 2026년은 1~8월 전년 동기 대비</p><p class="pg"></p></div>
+<aside>2021~2022년은 주문 수가 성장을 이끌었지만, 2023년부터는 객단가가 성장의 대부분을 만들고 2024~2025년에는 주문 수가 줄었습니다. 2026년 1~5월은 월 평균 환산치라 해석에 주의가 필요합니다.</aside>
+</section>
+
+<section id="m2">
+<p class="tracker">시사점 2 / 5 · 수익 구조</p>
+<h2 class="title">영업이익률은 2022년 18.0%가 정점이었고, 이후 하락분은 인건비 상승으로 모두 설명된다</h2>
+<div class="body">
+<div class="chart">
+<p class="chart-title">영업이익률 변화 요인, 2022 → 2025 (매출 대비 %p)</p>
+<div class="legend"><div class="key"><div class="sw red"></div><p class="lab">이익률을 낮춘 요인</p></div><div class="key"><div class="sw grey"></div><p class="lab">이익률을 높인 요인</p></div></div>
+<div class="wchart">
+<div class="wcol"><div class="wplot"><p class="val">18.0%</p><div class="bar ink" style="height:298px"></div></div><p class="axis-lab">2022</p></div>
+<div class="wcol"><div class="wplot"><p class="val redt">−1.7</p><div class="bar red" style="height:172px"></div><div style="height:126px"></div></div><p class="axis-lab">인건비</p></div>
+<div class="wcol"><div class="wplot"><p class="val redt">−0.1</p><div class="bar red" style="height:7px"></div><div style="height:119px"></div></div><p class="axis-lab">식자재</p></div>
+<div class="wcol"><div class="wplot"><p class="val">+0.4</p><div class="bar grey" style="height:43px"></div><div style="height:119px"></div></div><p class="axis-lab">임차료</p></div>
+<div class="wcol"><div class="wplot"><p class="val redt">−0.1</p><div class="bar red" style="height:10px"></div><div style="height:152px"></div></div><p class="axis-lab">플랫폼<br>수수료</p></div>
+<div class="wcol"><div class="wplot"><p class="val redt">−0.2</p><div class="bar red" style="height:20px"></div><div style="height:132px"></div></div><p class="axis-lab">로열티<br>·광고</p></div>
+<div class="wcol"><div class="wplot"><p class="val">+0.5</p><div class="bar grey" style="height:48px"></div><div style="height:132px"></div></div><p class="axis-lab">기타<br>(잔차)</p></div>
+<div class="wcol"><div class="wplot"><p class="val">16.8%</p><div class="bar ink" style="height:180px"></div></div><p class="axis-lab">2025</p></div>
+</div>
+</div>
+<div class="panel">
+<p class="ph">인건비율 +1.7%p가 이익률 하락폭 −1.2%p보다 크다</p>
+<div class="cause"><p class="tag ok">확인</p><p class="pt">둔산점 2026년 인건비율 29.3→31.0%는 정규직 전환 지원 정책(EV-030) 영향</p></div>
+<div class="cause"><p class="tag est">추정</p><p class="pt">체인 인건비율 24.5%(2020)→29.0%(2026)의 상승 원인은 사건로그에 없음. 임금 상승으로 추정</p></div>
+<p class="lbl">시사점</p>
+<p class="so">피크 시간대 중심으로 인력을 재배치하고, 리뉴얼 후 이익률 21%인 서면점 주방 개선을 확산 검토</p>
+</div>
+</div>
+<div class="foot"><p class="src">출처: 매출데이터, 연간 합계 기준. 세로축은 15%부터 표시. 기타 = 매출 − 비용 6항목 − 영업이익(쿠폰 등)</p><p class="pg"></p></div>
+<aside>임차료는 매출이 커지면서 비중이 줄어 이익률을 0.4%p 올렸지만, 인건비가 1.7%p를 깎아 순감 1.2%p가 됐습니다. 2026년 1~8월 이익률은 17.4%로 반등했지만 인건비율은 29.0%로 여전히 최고 수준입니다.</aside>
+</section>
+
+<section id="m3">
+<p class="tracker">시사점 3 / 5 · 채널</p>
+<h2 class="title">자사앱 주문 비중은 6배로 늘었지만, 외부 배달앱 의존도는 2022년 이후 43%에서 그대로다</h2>
+<div class="body">
+<div class="chart">
+<p class="chart-title">전체 주문 대비 채널 비중 (%)과 외부앱 주문 1건당 플랫폼 수수료 (원)</p>
+<div class="legend"><div class="key"><div class="sw red"></div><p class="lab">자사앱</p></div><div class="key"><div class="sw grey"></div><p class="lab">외부 배달앱(배민·쿠팡이츠·요기요)</p></div></div>
+<div class="gchart">
+<div class="gcol"><div class="pos" style="border-bottom:2px solid #1E2124"><div class="slot"><p class="val redt">5.6</p><div class="bar red" style="height:25px"></div></div><div class="slot"><p class="val">54.6</p><div class="bar grey" style="height:246px"></div></div></div><p class="axis-lab" style="margin-top:8px">2020</p><p class="axis-lab" style="color:#C8102E;font-weight:700;margin-top:14px">3,757</p></div>
+<div class="gcol"><div class="pos" style="border-bottom:2px solid #1E2124"><div class="slot"><p class="val redt">9.5</p><div class="bar red" style="height:43px"></div></div><div class="slot"><p class="val">50.0</p><div class="bar grey" style="height:225px"></div></div></div><p class="axis-lab" style="margin-top:8px">2021</p><p class="axis-lab" style="color:#C8102E;font-weight:700;margin-top:14px">3,855</p></div>
+<div class="gcol"><div class="pos" style="border-bottom:2px solid #1E2124"><div class="slot"><p class="val redt">13.8</p><div class="bar red" style="height:62px"></div></div><div class="slot"><p class="val">43.0</p><div class="bar grey" style="height:194px"></div></div></div><p class="axis-lab" style="margin-top:8px">2022</p><p class="axis-lab" style="color:#C8102E;font-weight:700;margin-top:14px">4,071</p></div>
+<div class="gcol"><div class="pos" style="border-bottom:2px solid #1E2124"><div class="slot"><p class="val redt">17.3</p><div class="bar red" style="height:78px"></div></div><div class="slot"><p class="val">42.7</p><div class="bar grey" style="height:192px"></div></div></div><p class="axis-lab" style="margin-top:8px">2023</p><p class="axis-lab" style="color:#C8102E;font-weight:700;margin-top:14px">4,345</p></div>
+<div class="gcol"><div class="pos" style="border-bottom:2px solid #1E2124"><div class="slot"><p class="val redt">21.6</p><div class="bar red" style="height:97px"></div></div><div class="slot"><p class="val">43.1</p><div class="bar grey" style="height:194px"></div></div></div><p class="axis-lab" style="margin-top:8px">2024</p><p class="axis-lab" style="color:#C8102E;font-weight:700;margin-top:14px">4,662</p></div>
+<div class="gcol"><div class="pos" style="border-bottom:2px solid #1E2124"><div class="slot"><p class="val redt">25.3</p><div class="bar red" style="height:114px"></div></div><div class="slot"><p class="val">43.1</p><div class="bar grey" style="height:194px"></div></div></div><p class="axis-lab" style="margin-top:8px">2025</p><p class="axis-lab" style="color:#C8102E;font-weight:700;margin-top:14px">4,886</p></div>
+<div class="gcol"><div class="pos" style="border-bottom:2px solid #1E2124"><div class="slot"><p class="val redt">31.4</p><div class="bar red" style="height:141px"></div></div><div class="slot"><p class="val">42.5</p><div class="bar grey" style="height:191px"></div></div></div><p class="axis-lab" style="margin-top:8px">2026 1~8</p><p class="axis-lab" style="color:#C8102E;font-weight:700;margin-top:14px">4,927</p></div>
+</div>
+</div>
+<div class="panel">
+<p class="ph">배달 주문은 지금도 사실상 전부 외부앱을 거친다</p>
+<div class="cause"><p class="tag ok">확인</p><p class="pt">배민 수수료 6.8→9.8% 인상(EV-024) 후 매장 평균 수수료 681→790만원</p></div>
+<div class="cause"><p class="tag est">추정</p><p class="pt">자사앱은 배달이 아니라 홀·포장 고객을 옮겨 왔다 (홀 비중 40.6→38.5%)</p></div>
+<p class="lbl">시사점</p>
+<p class="so">자사앱 KPI를 ‘외부앱→자사앱 배달 전환 수’로 바꾸고, 매출의 9%인 쿠폰을 배달 고객에 집중</p>
+</div>
+</div>
+<div class="foot"><p class="src">출처: 매출데이터, 사건로그. 2020~2025년 배달 주문 수 = 외부앱 3사 주문 수 합(100%)</p><p class="pg"></p></div>
+<aside>외부앱 주문 1건당 수수료는 2022년 4,071원에서 2026년 4,927원으로 21% 올랐습니다. 2020~2025년 데이터에서 배달 주문 수와 외부앱 3사 주문 수 합이 정확히 같아, 자사앱 주문은 배달이 아닌 홀·포장에서 나온 것으로 보입니다.</aside>
+</section>
+
+<section id="m4">
+<p class="tracker">시사점 4 / 5 · 매장</p>
+<h2 class="title">2026년 체인 이익률은 1.0%p 올랐지만, 충장로점과 연동점 두 곳만 뒷걸음질쳤다</h2>
+<div class="body">
+<div class="chart">
+<p class="chart-title">매장별 영업이익률, 2025 → 2026년 1~8월 (%)과 변화 (%p)</p>
+<div style="display:flex;flex-direction:column;margin-top:8px">
+<div class="hrow total"><p class="nm">체인 전체</p><p class="fig">16.4 → 17.4</p><div class="negz"></div><div class="posz"><div class="bar ink" style="width:60px"></div><p class="v">+1.0</p></div></div>
+<div class="hrow"><p class="nm">부산 서면점</p><p class="fig">16.9 → 21.0</p><div class="negz"></div><div class="posz"><div class="bar grey" style="width:246px"></div><p class="v">+4.1</p></div></div>
+<div class="hrow"><p class="nm">인천 부평점</p><p class="fig">18.1 → 20.5</p><div class="negz"></div><div class="posz"><div class="bar grey" style="width:144px"></div><p class="v">+2.4</p></div></div>
+<div class="hrow"><p class="nm">대구 동성로점</p><p class="fig">15.5 → 17.8</p><div class="negz"></div><div class="posz"><div class="bar grey" style="width:138px"></div><p class="v">+2.3</p></div></div>
+<div class="hrow"><p class="nm">서울 홍대점</p><p class="fig">15.7 → 17.4</p><div class="negz"></div><div class="posz"><div class="bar grey" style="width:102px"></div><p class="v">+1.7</p></div></div>
+<div class="hrow"><p class="nm">대전 둔산점</p><p class="fig">17.2 → 18.1</p><div class="negz"></div><div class="posz"><div class="bar grey" style="width:54px"></div><p class="v">+0.9</p></div></div>
+<div class="hrow"><p class="nm">서울 강남점</p><p class="fig">15.7 → 16.4</p><div class="negz"></div><div class="posz"><div class="bar grey" style="width:42px"></div><p class="v">+0.7</p></div></div>
+<div class="hrow"><p class="nm">수원 영통점</p><p class="fig">17.0 → 17.2</p><div class="negz"></div><div class="posz"><div class="bar grey" style="width:12px"></div><p class="v">+0.2</p></div></div>
+<div class="hrow"><p class="nm hl">제주 연동점</p><p class="fig hl">15.8 → 14.2</p><div class="negz"><p class="v hl">−1.6</p><div class="bar red" style="width:96px"></div></div><div class="posz"></div></div>
+<div class="hrow"><p class="nm hl">광주 충장로점</p><p class="fig hl">15.5 → 13.2</p><div class="negz"><p class="v hl">−2.3</p><div class="bar red" style="width:138px"></div></div><div class="posz"></div></div>
+</div>
+</div>
+<div class="panel">
+<p class="ph">공통 원인은 정규직 이탈</p>
+<div class="cause"><p class="tag ok">확인</p><p class="pt">충장로점: 점주 승계(EV-029) 후 정규직 이탈, QSC 82.2로 최저</p></div>
+<div class="cause"><p class="tag ok">확인</p><p class="pt">연동점: 정규직 연속 퇴사(EV-025·035), 4월 이익률 3.7%</p></div>
+<div class="cause"><p class="tag est">추정</p><p class="pt">연동점 식자재율 32.7%(최고)는 제주 항공 운송 영향</p></div>
+<p class="lbl">시사점</p>
+<p class="so">두 매장의 담당 SV(SV-02) 권역 지원을 강화하고, 인력 안정화 중심의 턴어라운드 계획 수립</p>
+</div>
+</div>
+<div class="foot"><p class="src">출처: 매출데이터, 사건로그, 매장마스터. 2026년 1~5월은 월 평균 환산치라 월별 등락이 커 보일 수 있음</p><p class="pg"></p></div>
+<aside>충장로점은 2026년 정규직 평균 2.2명으로 9개 매장 중 가장 적고, 식자재율도 33.7%에서 37.1%로 올랐습니다. 두 매장은 같은 담당 SV(이준호, SV-02) 관할입니다.</aside>
+</section>
+
+<section id="m5">
+<p class="tracker">시사점 5 / 5 · 운영 관리 지표</p>
+<h2 class="title">위생 B 등급이 매장·월의 절반에 이르지만, 품질 점수는 고객 반응을 설명하지 못한다</h2>
+<div class="body">
+<div class="chart">
+<p class="chart-title">매장별 위생검사 B 등급 개월 수 (실적 80개월 중)</p>
+<div style="display:flex;flex-direction:column;margin-top:8px">
+<div class="hrow"><p class="nm hl">제주 연동점</p><div class="posz"><div class="bar red" style="width:420px"></div><p class="v hl">60개월 (75%)</p></div></div>
+<div class="hrow"><p class="nm hl">광주 충장로점</p><div class="posz"><div class="bar red" style="width:378px"></div><p class="v hl">54개월 (68%)</p></div></div>
+<div class="hrow"><p class="nm">인천 부평점</p><div class="posz"><div class="bar grey" style="width:343px"></div><p class="v">49 (61%)</p></div></div>
+<div class="hrow"><p class="nm">대전 둔산점</p><div class="posz"><div class="bar grey" style="width:329px"></div><p class="v">47 (59%)</p></div></div>
+<div class="hrow"><p class="nm">수원 영통점</p><div class="posz"><div class="bar grey" style="width:301px"></div><p class="v">43 (54%)</p></div></div>
+<div class="hrow"><p class="nm">대구 동성로점</p><div class="posz"><div class="bar grey" style="width:273px"></div><p class="v">39 (49%)</p></div></div>
+<div class="hrow"><p class="nm">부산 서면점</p><div class="posz"><div class="bar grey" style="width:231px"></div><p class="v">33 (41%)</p></div></div>
+<div class="hrow"><p class="nm">서울 홍대점</p><div class="posz"><div class="bar grey" style="width:154px"></div><p class="v">22 (28%)</p></div></div>
+<div class="hrow"><p class="nm">서울 강남점</p><div class="posz"><div class="bar grey" style="width:112px"></div><p class="v">16 (20%)</p></div></div>
+</div>
+</div>
+<div class="panel">
+<p class="ph">B 등급이어도 고객 반응은 같다</p>
+<table style="font-size:24px;color:#1E2124;width:100%">
+<tr><th style="width:44%;text-align:left">평균 (매장·월)</th><th style="width:28%;text-align:right">A 등급 달</th><th style="width:28%;text-align:right">B 등급 달</th></tr>
+<tr><td>QSC 점수</td><td style="text-align:right">91.2</td><td style="text-align:right">85.2</td></tr>
+<tr><td>클레임 (건)</td><td style="text-align:right">17.9</td><td style="text-align:right">17.3</td></tr>
+<tr><td>리뷰 평점</td><td style="text-align:right">4.12</td><td style="text-align:right">4.10</td></tr>
+</table>
+<div class="cause"><p class="tag est">추정</p><p class="pt">QSC~클레임 상관 0.06: 점검 기준이 느슨하거나 점검자별 편차</p></div>
+<p class="lbl">시사점</p>
+<p class="so">클레임·리뷰·재방문과 연결된 품질 지표로 재설계하고, B 등급 상습 매장은 즉시 점검</p>
+</div>
+</div>
+<div class="foot"><p class="src">출처: 매출데이터(매장·월 720건 중 B 등급 363건), 사건로그 EV-011·014·017</p><p class="pg"></p></div>
+<aside>개별 위생 지적은 사건로그로 확인되지만, 지표 자체가 고객 결과와 연결되지 않는 이유는 추정입니다. QSC와 리뷰 평점의 상관도 0.13에 그칩니다.</aside>
+</section>
+
+<section id="extra">
+<p class="tracker">추가 관찰 · 검증 과제</p>
+<h2 class="title">원가 관련 두 가지 이슈와 데이터 유의점은 다음 의사결정 전에 짚어야 한다</h2>
+<div class="cards">
+<div class="card redtop"><p class="ck">검증 필요 · EV-026 미확인</p><p class="ch">치즈 단가 6% 인상 효과가 데이터에 보이지 않는다</p><p class="cn">30.9%</p><p class="cb">2026년 1~8월 체인 식자재율로, 전년 동기(31.1%)보다 낮다. 구매 송장으로 인상이 실제 적용됐는지 확인 필요</p></div>
+<div class="card"><p class="ck">확인 · EV-032</p><p class="ch">신메뉴 출시 첫 달 폐기율이 두 배로 뛴 매장이 있다</p><p class="cn">4.7 → 9.6%</p><p class="cb">트러플 머쉬룸 출시월(2026-03) 부평·동성로점 식자재 폐기율. 매장별 첫 달 발주 기준 필요</p></div>
+<div class="card"><p class="ck">데이터 유의점</p><p class="ch">설명되지 않는 손익 잔차가 매출의 4~9% 남아 있다</p><p class="cn">4.1~8.8%</p><p class="cb">매출 − 비용 6항목 − 영업이익. 쿠폰 할인 등으로 추정. 2026년 1~5월은 월 평균 환산치라 월별 비교에 주의</p></div>
+</div>
+<div class="foot"><p class="src">출처: 매출데이터, 사건로그, 공급사마스터. 잔차 범위는 2020~2026년 연간 기준</p><p class="pg"></p></div>
+<aside>치즈 단가 인상은 사건로그에 ‘미확인(데이터로 검증 필요)’으로 남아 있는데, 데이터로는 효과가 보이지 않습니다. 광주 충장로점만 식자재율이 크게 올라, 매장 단위 원인과 구분해서 볼 필요가 있습니다.</aside>
+</section>
+
+<section id="method" style="background:#F0EEEA">
+<p class="tracker">부록 · 분석 방법</p>
+<h2 class="title">원본을 매장·월 단위로 정리한 뒤, 사건로그와 대조해 원인을 확인·추정으로 나눴다</h2>
+<table style="font-size:24px;color:#1E2124;margin-top:40px;width:100%">
+<tr style="background:#1E2124"><th style="width:20%;text-align:left;color:#FBFAF8">단계</th><th style="width:56%;text-align:left;color:#FBFAF8">처리 내용</th><th style="width:24%;text-align:left;color:#FBFAF8">결과</th></tr>
+<tr><td>1. 중복 제거</td><td>한 매장·월이 매출카테고리 6행으로 나뉘어 반복되는 구조를 매장·월 1행으로 정리</td><td>4,428행 → 738건</td></tr>
+<tr><td>2. 실적만 사용</td><td>2026-09~10 추정치(2025년 같은 달 × 증감률) 제외</td><td>실적 720건</td></tr>
+<tr><td>3. 정합성 점검</td><td>매장·월 단위 열(주문수·비용·이익 등)이 6행 모두 같은지 확인</td><td>불일치 0건</td></tr>
+<tr><td>4. 비교 기준</td><td>2026년은 1~8월만 있어 2025년 1~8월과 비교. 비율은 합계끼리 나눠 계산</td><td>전년 동기 대비</td></tr>
+<tr><td>5. 원인 판정</td><td>사건로그 39건과 대조. 기록된 사건이 있으면 ‘확인’, 데이터 해석이면 ‘추정’</td><td>확인 / 추정 표시</td></tr>
+</table>
+<div class="foot"><p class="src">데이터: 피자 프랜차이즈 9개 매장 월별 실적(실습용 가상 데이터), 2020-01~2026-08</p><p class="pg"></p></div>
+<aside>매장·월 단위 지표를 원본 그대로 합치면 6배가 되므로 반드시 먼저 중복을 제거했습니다.</aside>
+</section>
+</body></html>

@@ -1,0 +1,14 @@
+<section id="method" style="background:#F0EEEA">
+<p class="tracker">부록 · 분석 방법</p>
+<h2 class="title">원본을 매장·월 단위로 정리한 뒤, 사건로그와 대조해 원인을 확인·추정으로 나눴다</h2>
+<table style="font-size:24px;color:#1E2124;margin-top:40px;width:100%">
+<tr style="background:#1E2124"><th style="width:20%;text-align:left;color:#FBFAF8">단계</th><th style="width:56%;text-align:left;color:#FBFAF8">처리 내용</th><th style="width:24%;text-align:left;color:#FBFAF8">결과</th></tr>
+<tr><td>1. 중복 제거</td><td>한 매장·월이 매출카테고리 6행으로 나뉘어 반복되는 구조를 매장·월 1행으로 정리</td><td>4,428행 → 738건</td></tr>
+<tr><td>2. 실적만 사용</td><td>2026-09~10 추정치(2025년 같은 달 × 증감률) 제외</td><td>실적 720건</td></tr>
+<tr><td>3. 정합성 점검</td><td>매장·월 단위 열(주문수·비용·이익 등)이 6행 모두 같은지 확인</td><td>불일치 0건</td></tr>
+<tr><td>4. 비교 기준</td><td>2026년은 1~8월만 있어 2025년 1~8월과 비교. 비율은 합계끼리 나눠 계산</td><td>전년 동기 대비</td></tr>
+<tr><td>5. 원인 판정</td><td>사건로그 39건과 대조. 기록된 사건이 있으면 ‘확인’, 데이터 해석이면 ‘추정’</td><td>확인 / 추정 표시</td></tr>
+</table>
+<div class="foot"><p class="src">데이터: 피자 프랜차이즈 9개 매장 월별 실적(실습용 가상 데이터), 2020-01~2026-08</p><p class="pg"></p></div>
+<aside>매장·월 단위 지표를 원본 그대로 합치면 6배가 되므로 반드시 먼저 중복을 제거했습니다.</aside>
+</section>

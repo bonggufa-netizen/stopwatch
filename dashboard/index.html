@@ -1,0 +1,556 @@
+<meta name="dash-one-writer">
+<meta name="dash-form" content="dashboard">
+<style>
+.pz-wrap { container-type: inline-size; font-family: var(--font-anthropic-sans); color: var(--color-fg); }
+.pz-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--cds-gap-md); margin-bottom: var(--cds-gap-lg); }
+.pz-head-txt { display: flex; flex-direction: column; gap: var(--cds-gap-xs); min-width: 0; flex: 1 1 420px; }
+.pz-eyebrow { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); letter-spacing: .06em; }
+.pz-title { margin: 0; font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); line-height: 1.2; text-wrap: balance; }
+.pz-lede { margin: 0; font-size: var(--cds-font-size-body); color: var(--color-fg-muted); line-height: 1.55; }
+.pz-lede b { color: var(--color-fg); font-weight: var(--cds-font-weight-medium); font-variant-numeric: tabular-nums; }
+.pz-ctrl { display: flex; flex-direction: column; gap: var(--cds-gap-xs); }
+.pz-ctrl label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.pz-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--cds-gap-md); grid-auto-flow: dense; }
+.pz-tile { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: calc(var(--cds-radius) * 2); padding: var(--cds-pad-lg); min-width: 0; display: flex; flex-direction: column; gap: var(--cds-gap-sm); position: relative; }
+.c2 { grid-column: span 2; } .c3 { grid-column: span 3; } .c4 { grid-column: span 4; } .c5 { grid-column: span 5; } .c6 { grid-column: span 6; } .c7 { grid-column: span 7; } .c8 { grid-column: span 8; } .c12 { grid-column: span 12; }
+.r2 { grid-row: span 2; }
+.pz-hero { background: var(--color-fg); color: var(--color-bg); border-color: var(--color-fg); justify-content: space-between; }
+.pz-hero .pz-lab, .pz-hero .pz-sub { color: var(--color-bg); opacity: .8; }
+.pz-lab { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); letter-spacing: .04em; }
+.pz-h { margin: 0; font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); line-height: 1.3; }
+.pz-note { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); line-height: 1.5; }
+.pz-big { margin: 0; font-family: var(--font-anthropic-serif); font-weight: 400; font-size: clamp(28px, 3.2cqi, 40px); line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pz-hero .pz-big { font-size: clamp(44px, 6cqi, 72px); }
+.pz-unit { font-family: var(--font-anthropic-sans); font-size: var(--cds-font-size-body); margin-left: 4px; opacity: .75; }
+.pz-sub { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pz-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: var(--cds-font-size-caption); font-weight: var(--cds-font-weight-medium); font-variant-numeric: tabular-nums; border: 1px solid currentColor; }
+.pz-chip.good { color: var(--color-ok); }
+.pz-chip.bad { color: var(--color-bad); }
+.pz-chip.flat { color: var(--color-fg-muted); }
+.pz-hero .pz-chip.good, .pz-hero .pz-chip.bad, .pz-hero .pz-chip.flat { color: var(--color-bg); background: transparent; }
+.pz-chart { position: relative; min-height: 260px; width: 100%; }
+.pz-chart svg { display: block; width: 100%; overflow: visible; }
+.pz-chart .tick text, .pz-axis-lab { fill: var(--cds-text-secondary); font-size: var(--cds-font-size-caption); font-family: var(--font-anthropic-sans); }
+.pz-chart .domain { stroke: var(--cds-chart-axis); }
+.pz-chart .tick line { stroke: var(--cds-chart-grid); }
+.pz-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); margin: 0; padding: 0; list-style: none; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.pz-legend li { display: flex; align-items: center; gap: 6px; }
+.pz-sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--cds-chart-muted); }
+.pz-sw.line { height: 3px; border-radius: 2px; }
+.pz-sw.warn { background: var(--color-warn); transform: rotate(45deg); width: 9px; height: 9px; border-radius: 1px; }
+.pz-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); box-shadow: var(--cds-shadow-popover); border-radius: var(--cds-radius); padding: 8px 10px; font-size: var(--cds-font-size-caption); line-height: 1.5; max-width: 260px; z-index: 5; color: var(--color-fg); opacity: 0; }
+.pz-tip .t { font-weight: var(--cds-font-weight-medium); }
+.pz-tip .m { color: var(--cds-text-secondary); }
+.pz-stores { display: flex; flex-direction: column; gap: 4px; }
+.pz-srow { display: grid; grid-template-columns: minmax(84px, 1.2fr) minmax(40px, 2fr) auto auto; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--cds-radius); border: 1px solid transparent; background: transparent; color: var(--color-fg); font: inherit; text-align: left; cursor: pointer; width: 100%; }
+.pz-srow:hover { background: var(--color-bg); }
+.pz-srow:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 1px; }
+.pz-srow.on { border-color: var(--color-fg); background: var(--color-bg); }
+.pz-sname { font-size: var(--cds-font-size-caption); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pz-sbar { height: 10px; border-radius: 5px; background: var(--color-border-line); overflow: hidden; }
+.pz-sbar i { display: block; height: 100%; border-radius: 5px; }
+.pz-sval { font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+.pz-stack { display: flex; flex-direction: column; gap: 8px; }
+.pz-srow2 { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; }
+.pz-yr { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+.pz-bar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; }
+.pz-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--color-bg); font-variant-numeric: tabular-nums; overflow: hidden; white-space: nowrap; }
+.pz-events { display: flex; flex-direction: column; }
+.pz-ev { display: grid; grid-template-columns: 82px minmax(90px, 140px) 76px 1fr auto; gap: 12px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--color-border-line); font-size: var(--cds-font-size-caption); }
+.pz-ev:first-child { border-top: none; }
+.pz-ev .d { color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+.pz-ev .ti { color: var(--color-fg); line-height: 1.45; min-width: 0; }
+.pz-ev .ty { color: var(--color-fg-muted); }
+.pz-ev .st.ok { color: var(--color-ok); }
+.pz-ev .st.warn { color: var(--color-warn); }
+.pz-err { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-bad); }
+@container (max-width: 1000px) {
+  .c2 { grid-column: span 3; } .c3, .c4, .c5 { grid-column: span 6; } .c6, .c7, .c8 { grid-column: span 12; }
+}
+@container (max-width: 560px) {
+  .c2 { grid-column: span 6; } .c3, .c4, .c5, .c6, .c7, .c8, .c12 { grid-column: span 12; } .r2 { grid-row: span 1; }
+  .pz-ev { grid-template-columns: 74px 1fr auto; } .pz-ev .s, .pz-ev .ty { display: none; }
+}
+</style>
+
+<div class="pz-wrap">
+  <header class="pz-head" id="head">
+    <div class="pz-head-txt">
+      <p class="pz-eyebrow">CEO 대시보드 · 9개 매장 · 실적 2020-01~2026-08</p>
+      <h1 class="pz-title">피자 프랜차이즈 경영 현황</h1>
+      <p class="pz-lede" data-read lang="ko"><b data-draw="scope">—</b>의 2026년 1~8월 매출은 전년 동기 대비 <b data-draw="kv" data-source="kpi" data-field="sales_yoy" data-row="0" data-fmt="sgn1">—</b>%, 영업이익률은 <b data-draw="kv" data-source="kpi" data-field="opm" data-row="0" data-fmt="n1">—</b>%(<b data-draw="kv" data-source="kpi" data-field="opm_pp" data-row="0" data-fmt="sgn1">—</b>%p)입니다.</p>
+    </div>
+    <div class="pz-ctrl">
+      <label for="pz-store">매장 선택 (순위표 행을 눌러도 바뀝니다)</label>
+      <select id="pz-store" class="dash-select" data-draw="storesel" data-source="stores" aria-label="매장 선택"></select>
+    </div>
+  </header>
+
+  <div class="pz-grid">
+    <section class="pz-tile pz-hero c4 r2" id="kpi-sales">
+      <p class="pz-lab">매출 · 2026년 1~8월 누계</p>
+      <p class="pz-big"><span data-draw="kv" data-source="kpi" data-field="sales_eok" data-row="0" data-fmt="n1">—</span><span class="pz-unit">억원</span></p>
+      <p class="pz-sub"><span class="pz-chip" data-draw="kv" data-source="kpi" data-field="sales_yoy" data-row="0" data-fmt="sgn1" data-suf="%" data-good="up">—</span>전년 동기 <span data-draw="kv" data-source="kpi" data-field="sales_prev_eok" data-row="0" data-fmt="n1">—</span>억원 대비</p>
+    </section>
+
+    <section class="pz-tile c4" id="kpi-opm">
+      <p class="pz-lab">영업이익률 · 1~8월</p>
+      <p class="pz-big"><span data-draw="kv" data-source="kpi" data-field="opm" data-row="0" data-fmt="n1">—</span><span class="pz-unit">%</span></p>
+      <p class="pz-sub"><span class="pz-chip" data-draw="kv" data-source="kpi" data-field="opm_pp" data-row="0" data-fmt="sgn1" data-suf="%p" data-good="up">—</span>전년 동기 대비</p>
+    </section>
+
+    <section class="pz-tile c2" id="kpi-orders">
+      <p class="pz-lab">주문 수 · 1~8월</p>
+      <p class="pz-big"><span data-draw="kv" data-source="kpi" data-field="orders_k" data-row="0" data-fmt="n1">—</span><span class="pz-unit">천 건</span></p>
+      <p class="pz-sub"><span class="pz-chip" data-draw="kv" data-source="kpi" data-field="orders_yoy" data-row="0" data-fmt="sgn1" data-suf="%" data-good="up">—</span></p>
+    </section>
+
+    <section class="pz-tile c2" id="kpi-aov">
+      <p class="pz-lab">객단가</p>
+      <p class="pz-big"><span data-draw="kv" data-source="kpi" data-field="aov_won" data-row="0" data-fmt="int">—</span><span class="pz-unit">원</span></p>
+      <p class="pz-sub"><span class="pz-chip" data-draw="kv" data-source="kpi" data-field="aov_yoy" data-row="0" data-fmt="sgn1" data-suf="%" data-good="up">—</span></p>
+    </section>
+
+    <section class="pz-tile c2" id="kpi-labor">
+      <p class="pz-lab">인건비율 (매출 대비)</p>
+      <p class="pz-big"><span data-draw="kv" data-source="kpi" data-field="labor_pct" data-row="0" data-fmt="n1">—</span><span class="pz-unit">%</span></p>
+      <p class="pz-sub"><span class="pz-chip" data-draw="kv" data-source="kpi" data-field="labor_pp" data-row="0" data-fmt="sgn1" data-suf="%p" data-good="down">—</span></p>
+    </section>
+
+    <section class="pz-tile c2" id="kpi-app">
+      <p class="pz-lab">자사앱 주문 비중</p>
+      <p class="pz-big"><span data-draw="kv" data-source="kpi" data-field="app_pct" data-row="0" data-fmt="n1">—</span><span class="pz-unit">%</span></p>
+      <p class="pz-sub"><span class="pz-chip" data-draw="kv" data-source="kpi" data-field="app_pp" data-row="0" data-fmt="sgn1" data-suf="%p" data-good="up">—</span></p>
+    </section>
+
+    <section class="pz-tile c2" id="kpi-qsc">
+      <p class="pz-lab">QSC 점수 (월평균)</p>
+      <p class="pz-big"><span data-draw="kv" data-source="kpi" data-field="qsc" data-row="0" data-fmt="n1">—</span><span class="pz-unit">점</span></p>
+      <p class="pz-sub"><span class="pz-chip" data-draw="kv" data-source="kpi" data-field="qsc_chg" data-row="0" data-fmt="sgn1" data-good="up">—</span></p>
+    </section>
+
+    <section class="pz-tile c2" id="kpi-hyg">
+      <p class="pz-lab">위생 B 등급 달 비율</p>
+      <p class="pz-big"><span data-draw="kv" data-source="kpi" data-field="hyg_b" data-row="0" data-fmt="int">—</span><span class="pz-unit">%</span></p>
+      <p class="pz-sub"><span class="pz-chip" data-draw="kv" data-source="kpi" data-field="hyg_b_pp" data-row="0" data-fmt="sgn1" data-suf="%p" data-good="down">—</span></p>
+    </section>
+
+    <section class="pz-tile c8 r2" id="trend">
+      <h2 class="pz-h">월별 매출과 영업이익률</h2>
+      <ul class="pz-legend">
+        <li><i class="pz-sw" data-draw="sw" data-i="0"></i>매출(억원)</li>
+        <li><i class="pz-sw" data-draw="sw" data-i="0" data-alpha="0.35"></i>추정(2026-09~10)</li>
+        <li><i class="pz-sw line" data-draw="sw" data-i="1"></i>영업이익률(%)</li>
+        <li><i class="pz-sw warn"></i>사건 발생 달</li>
+      </ul>
+      <div class="pz-chart" data-draw="trend" data-source="monthly events" style="min-height:320px"></div>
+      <p class="pz-note">막대 위에 마우스를 올리면 그달의 수치와 사건을 볼 수 있습니다. 2026년 1~5월 값은 월 평균 환산치입니다.</p>
+    </section>
+
+    <section class="pz-tile c4 r2" id="stores">
+      <h2 class="pz-h">매장별 영업이익률</h2>
+      <p class="pz-note">2026년 1~8월, 괄호는 전년 동기 대비 변화. 행을 누르면 그 매장만 봅니다.</p>
+      <div class="pz-stores" data-draw="storelist" data-source="stores" style="min-height:300px"></div>
+    </section>
+
+    <section class="pz-tile c7" id="costs">
+      <h2 class="pz-h">매출 대비 비용 구조</h2>
+      <ul class="pz-legend" data-draw="costlegend"></ul>
+      <div class="pz-chart pz-stack" data-draw="costs" data-source="costs" style="min-height:240px"></div>
+      <p class="pz-note">기타 = 매출 − 비용 6항목 − 영업이익(쿠폰 할인 등). 2026년은 1~8월.</p>
+    </section>
+
+    <section class="pz-tile c5" id="channel">
+      <h2 class="pz-h">주문 채널 비중</h2>
+      <ul class="pz-legend">
+        <li><i class="pz-sw line" data-draw="sw" data-i="0"></i>자사앱</li>
+        <li><i class="pz-sw line" data-draw="sw" data-i="1"></i>외부 배달앱</li>
+        <li><i class="pz-sw line" data-draw="sw" data-i="2"></i>홀</li>
+      </ul>
+      <div class="pz-chart" data-draw="channel" data-source="channel" style="min-height:240px"></div>
+      <p class="pz-note">전체 주문 대비 %. 2026년은 1~8월.</p>
+    </section>
+
+    <section class="pz-tile c12" id="events">
+      <h2 class="pz-h">최근 주요 사건</h2>
+      <p class="pz-note">선택한 매장과 전 매장·본사 사건을 최근 순으로 보여 줍니다. 확인여부가 ‘추정’·‘미확인’이면 데이터로 검증이 필요합니다.</p>
+      <div class="pz-events" data-draw="events" data-source="events"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+// 계산 정의: 2026년 1~8월(실적)과 2025년 1~8월 비교
+window.pick = () => dash.params().store || '';
+
+dash.calc('kpi', {
+  title: '핵심 지표 (2026년 1~8월 vs 2025년 1~8월)',
+  description: '선택한 매장(없으면 9개 매장 전체)의 실적 행만 합산. 비율은 합계끼리 나눔',
+  inputs: ['sm'],
+  fn: (sm) => {
+    const store = dash.params().store || '';
+    const rows = sm.filter((r) => r.kind === 'actual' && (!store || r.store_code === store));
+    const cur = rows.filter((r) => r.year === 2026 && r.month <= 8);
+    const prev = rows.filter((r) => r.year === 2025 && r.month <= 8);
+    const sum = (rs, k) => rs.reduce((a, r) => a + r[k], 0);
+    const avg = (rs, k) => sum(rs, k) / rs.length;
+    const pct = (rs, k) => 100 * sum(rs, k) / sum(rs, 'sales');
+    const wavg = (rs, k) => 100 * rs.reduce((a, r) => a + r[k] * r.orders, 0) / sum(rs, 'orders');
+    const bShare = (rs) => 100 * rs.filter((r) => r.hygiene === 'B').length / rs.length;
+    const r1 = (x) => Math.round(x * 10) / 10;
+    const growth = (a, b) => r1(100 * (a / b - 1));
+    const aov = (rs) => 10000 * sum(rs, 'sales') / sum(rs, 'orders');
+    return [{
+      sales_eok: r1(sum(cur, 'sales') / 10000),
+      sales_prev_eok: r1(sum(prev, 'sales') / 10000),
+      sales_yoy: growth(sum(cur, 'sales'), sum(prev, 'sales')),
+      opm: r1(pct(cur, 'op_profit')),
+      opm_pp: r1(pct(cur, 'op_profit') - pct(prev, 'op_profit')),
+      orders_k: r1(sum(cur, 'orders') / 1000),
+      orders_yoy: growth(sum(cur, 'orders'), sum(prev, 'orders')),
+      aov_won: Math.round(aov(cur)),
+      aov_yoy: growth(aov(cur), aov(prev)),
+      labor_pct: r1(pct(cur, 'labor')),
+      labor_pp: r1(pct(cur, 'labor') - pct(prev, 'labor')),
+      app_pct: r1(wavg(cur, 'app_share')),
+      app_pp: r1(wavg(cur, 'app_share') - wavg(prev, 'app_share')),
+      qsc: r1(avg(cur, 'qsc')),
+      qsc_chg: r1(avg(cur, 'qsc') - avg(prev, 'qsc')),
+      hyg_b: Math.round(bShare(cur)),
+      hyg_b_pp: r1(bShare(cur) - bShare(prev)),
+    }];
+  },
+});
+
+dash.calc('monthly', {
+  title: '월별 매출·영업이익률',
+  description: '선택한 매장(없으면 전체)의 월별 매출 합계(억원)와 영업이익률. 2026-09~10은 추정',
+  inputs: ['sm'],
+  fn: (sm) => {
+    const store = dash.params().store || '';
+    const by = new Map();
+    for (const r of sm) {
+      if (store && r.store_code !== store) continue;
+      const m = by.get(r.ym) || { ym: r.ym, kind: r.kind, sales: 0, op: 0 };
+      m.sales += r.sales; m.op += r.op_profit; by.set(r.ym, m);
+    }
+    return [...by.values()].sort((a, b) => a.ym.localeCompare(b.ym)).map((m) => ({
+      ym: m.ym, kind: m.kind,
+      sales_eok: Math.round(m.sales / 100) / 100,
+      opm: Math.round(1000 * m.op / m.sales) / 10,
+    }));
+  },
+});
+
+dash.calc('stores', {
+  title: '매장별 영업이익률 (2026년 1~8월)',
+  description: '매장별 1~8월 영업이익률과 전년 동기 대비 변화(%p), 매출 증감률',
+  inputs: ['sm'],
+  fn: (sm) => {
+    const by = new Map();
+    for (const r of sm) {
+      if (r.kind !== 'actual' || r.month > 8 || (r.year !== 2025 && r.year !== 2026)) continue;
+      const s = by.get(r.store_code) || { store_code: r.store_code, store: r.store, s25: 0, o25: 0, s26: 0, o26: 0 };
+      if (r.year === 2026) { s.s26 += r.sales; s.o26 += r.op_profit; } else { s.s25 += r.sales; s.o25 += r.op_profit; }
+      by.set(r.store_code, s);
+    }
+    const r1 = (x) => Math.round(x * 10) / 10;
+    return [...by.values()].map((s) => ({
+      store_code: s.store_code, store: s.store,
+      opm: r1(100 * s.o26 / s.s26),
+      opm_pp: r1(100 * s.o26 / s.s26 - 100 * s.o25 / s.s25),
+      sales_yoy: r1(100 * (s.s26 / s.s25 - 1)),
+    })).sort((a, b) => b.opm - a.opm);
+  },
+});
+
+dash.calc('costs', {
+  title: '연도별 매출 대비 비용 구조 (%)',
+  description: '선택한 매장(없으면 전체)의 실적 연간 합계 기준. 기타 = 100 − 비용 6항목 − 영업이익',
+  inputs: ['sm'],
+  fn: (sm) => {
+    const store = dash.params().store || '';
+    const by = new Map();
+    const keys = ['sales', 'food', 'labor', 'rent', 'platform_fee', 'royalty', 'ad_fee', 'op_profit'];
+    for (const r of sm) {
+      if (r.kind !== 'actual' || (store && r.store_code !== store)) continue;
+      const y = by.get(r.year) || Object.fromEntries(keys.map((k) => [k, 0]));
+      for (const k of keys) y[k] += r[k];
+      by.set(r.year, y);
+    }
+    const r1 = (x) => Math.round(x * 10) / 10;
+    return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([year, y]) => {
+      const p = (k) => 100 * y[k] / y.sales;
+      const row = { year: String(year), food: r1(p('food')), labor: r1(p('labor')), rent: r1(p('rent')), platform: r1(p('platform_fee')), royalty_ad: r1(p('royalty') + p('ad_fee')), profit: r1(p('op_profit')) };
+      row.other = r1(100 - row.food - row.labor - row.rent - row.platform - row.royalty_ad - row.profit);
+      return row;
+    });
+  },
+});
+
+dash.calc('channel', {
+  title: '연도별 주문 채널 비중 (%)',
+  description: '전체 주문 대비 자사앱·외부 배달앱(배민·쿠팡이츠·요기요)·홀 주문 비중. 주문 수 가중',
+  inputs: ['sm'],
+  fn: (sm) => {
+    const store = dash.params().store || '';
+    const by = new Map();
+    for (const r of sm) {
+      if (r.kind !== 'actual' || (store && r.store_code !== store)) continue;
+      const y = by.get(r.year) || { orders: 0, app: 0, ext: 0, hall: 0 };
+      y.orders += r.orders; y.app += r.app_share * r.orders; y.ext += r.ext_orders; y.hall += r.hall_share * r.orders;
+      by.set(r.year, y);
+    }
+    const r1 = (x) => Math.round(x * 10) / 10;
+    return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([year, y]) => ({
+      year: String(year), app: r1(100 * y.app / y.orders), ext: r1(100 * y.ext / y.orders), hall: r1(100 * y.hall / y.orders),
+    }));
+  },
+});
+</script>
+
+<script>
+// 공통 도우미
+window.pzColor = (i) => { const c = dash.colors || []; return c.length ? c[i % c.length] : 'var(--cds-chart-muted)'; };
+window.pzFmt = (kind, v) => {
+  if (v === null || v === undefined || Number.isNaN(v)) return '—';
+  if (kind === 'int') return d3.format(',')(Math.round(v));
+  if (kind === 'sgn1') return (v > 0 ? '+' : v < 0 ? '−' : '±') + d3.format(',.1f')(Math.abs(v));
+  return d3.format(',.1f')(v);
+};
+window.pzTip = (el) => {
+  let t = el.querySelector(':scope > .pz-tip');
+  if (!t) { t = document.createElement('div'); t.className = 'pz-tip'; el.appendChild(t); }
+  return {
+    show(lines, x, y) {
+      t.replaceChildren(...lines.map(([cls, txt]) => { const d = document.createElement('div'); d.className = cls; d.textContent = txt; return d; }));
+      t.style.opacity = '1';
+      const w = el.clientWidth, tw = t.offsetWidth, th = t.offsetHeight;
+      t.style.left = Math.max(0, Math.min(w - tw, x + 12)) + 'px';
+      t.style.top = Math.max(0, y - th - 8) + 'px';
+    },
+    hide() { t.style.opacity = '0'; },
+  };
+};
+window.pzFail = (el, d) => {
+  if (d.status === 'error') { const p = document.createElement('p'); p.className = 'pz-err'; p.textContent = '데이터를 불러오지 못했습니다.'; el.replaceChildren(p); }
+  else el.textContent = '—';
+};
+</script>
+
+<script>
+// KPI 숫자와 칩
+dash.draw('kv', (el) => {
+  const d = dash.data('kpi');
+  if (d.status !== 'ok' || !d.data || !d.data[0]) { el.textContent = '—'; return; }
+  const v = d.data[0][el.dataset.field];
+  el.textContent = pzFmt(el.dataset.fmt, v) + (el.dataset.suf || '');
+  if (el.dataset.good) {
+    const tone = Math.abs(v) < 0.05 ? 'flat' : ((v > 0) === (el.dataset.good === 'up') ? 'good' : 'bad');
+    el.className = 'pz-chip ' + tone;
+  }
+});
+
+dash.draw('sw', (el) => {
+  el.style.background = pzColor(Number(el.dataset.i));
+  if (el.dataset.alpha) el.style.opacity = el.dataset.alpha;
+});
+
+dash.draw('scope', (el) => {
+  const s = dash.data('stores');
+  const code = pick();
+  if (!code) { el.textContent = '9개 매장 전체'; return; }
+  const row = s.status === 'ok' ? s.data.find((r) => r.store_code === code) : null;
+  el.textContent = row ? row.store : code;
+});
+
+dash.draw('storesel', (sel) => {
+  const s = dash.data('stores');
+  const rows = s.status === 'ok' ? [...s.data].sort((a, b) => a.store_code.localeCompare(b.store_code)) : [];
+  sel.replaceChildren(new Option('9개 매장 전체', ''), ...rows.map((r) => new Option(r.store, r.store_code)));
+  sel.value = pick();
+  sel.onchange = () => dash.setParams({ store: sel.value || null });
+});
+</script>
+
+<script>
+// 매장 순위표
+dash.draw('storelist', (el) => {
+  const s = dash.data('stores');
+  if (s.status !== 'ok') { pzFail(el, s); return; }
+  const max = d3.max(s.data, (r) => r.opm) || 1;
+  const code = pick();
+  el.replaceChildren(...s.data.map((r) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pz-srow' + (r.store_code === code ? ' on' : '');
+    b.setAttribute('aria-pressed', r.store_code === code ? 'true' : 'false');
+    const nm = document.createElement('span'); nm.className = 'pz-sname'; nm.textContent = r.store;
+    const bar = document.createElement('span'); bar.className = 'pz-sbar';
+    const fill = document.createElement('i'); fill.style.width = (100 * Math.max(0, r.opm) / max) + '%';
+    fill.style.background = r.opm_pp < 0 ? 'var(--cds-chart-status-critical)' : pzColor(0);
+    bar.appendChild(fill);
+    const val = document.createElement('span'); val.className = 'pz-sval';
+    val.dataset.source = 'stores'; val.dataset.field = 'opm'; val.dataset.where = 'store_code=' + r.store_code;
+    val.textContent = pzFmt('n1', r.opm) + '%';
+    const chg = document.createElement('span');
+    chg.className = 'pz-chip ' + (Math.abs(r.opm_pp) < 0.05 ? 'flat' : r.opm_pp > 0 ? 'good' : 'bad');
+    chg.dataset.source = 'stores'; chg.dataset.field = 'opm_pp'; chg.dataset.where = 'store_code=' + r.store_code;
+    chg.textContent = pzFmt('sgn1', r.opm_pp) + '%p';
+    b.append(nm, bar, val, chg);
+    b.onclick = () => dash.setParams({ store: r.store_code === code ? null : r.store_code });
+    return b;
+  }));
+});
+</script>
+
+<script>
+// 월별 추이 차트
+dash.draw('trend', {
+  mount(el) {
+    const svg = d3.select(el).append('svg').attr('role', 'img').attr('aria-label', '월별 매출(막대)과 영업이익률(선), 2020-01부터 2026-10까지');
+    return { svg, tip: pzTip(el), first: true };
+  },
+  update(el, made) {
+    const m = dash.data('monthly'), ev = dash.data('events');
+    const { svg, tip } = made;
+    if (m.status !== 'ok') { svg.selectAll('*').remove(); return; }
+    const code = pick();
+    const evRows = ev.status === 'ok' ? ev.data.filter((e) => !code || e.store_code === code || e.store_code === 'ALL') : [];
+    const evBy = d3.group(evRows, (e) => e.ym);
+    const data = m.data;
+    const W = el.clientWidth, H = 320, mg = { t: 12, r: 44, b: 28, l: 44 };
+    svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+    svg.selectAll('*').remove();
+    const x = d3.scaleBand().domain(data.map((d) => d.ym)).range([mg.l, W - mg.r]).padding(0.18);
+    const y = d3.scaleLinear().domain([0, d3.max(data, (d) => d.sales_eok) * 1.1]).nice().range([H - mg.b, mg.t]);
+    const y2 = d3.scaleLinear().domain([0, Math.max(25, d3.max(data, (d) => d.opm) * 1.15)]).nice().range([H - mg.b, mg.t]);
+    const g = svg.append('g');
+    g.append('g').attr('transform', `translate(${mg.l},0)`).call(d3.axisLeft(y).ticks(4).tickSize(-(W - mg.l - mg.r)).tickFormat((v) => v + '억'))
+      .call((a) => a.select('.domain').remove()).call((a) => a.selectAll('.tick line').attr('stroke-opacity', 0.6));
+    g.append('g').attr('transform', `translate(${W - mg.r},0)`).call(d3.axisRight(y2).ticks(4).tickFormat((v) => v + '%')).call((a) => a.select('.domain').remove()).call((a) => a.selectAll('.tick line').remove());
+    const years = data.filter((d) => d.ym.endsWith('-01')).map((d) => d.ym);
+    const step = W < 520 ? 2 : 1;
+    g.append('g').attr('transform', `translate(0,${H - mg.b})`).call(d3.axisBottom(x).tickValues(years.filter((_, i) => i % step === 0)).tickFormat((v) => v.slice(0, 4)).tickSizeOuter(0));
+    const bars = g.append('g').selectAll('rect').data(data).join('rect')
+      .attr('x', (d) => x(d.ym)).attr('width', x.bandwidth())
+      .attr('y', (d) => y(d.sales_eok)).attr('height', (d) => y(0) - y(d.sales_eok))
+      .style('fill', pzColor(0)).style('opacity', (d) => d.kind === 'estimate' ? 0.35 : 0.85);
+    const line = d3.line().x((d) => x(d.ym) + x.bandwidth() / 2).y((d) => y2(d.opm));
+    g.append('path').datum(data.filter((d) => d.kind === 'actual')).attr('fill', 'none').attr('stroke-width', 2).style('stroke', pzColor(1)).attr('d', line);
+    g.append('path').datum(data.filter((d, i) => d.kind === 'estimate' || (data[i + 1] && data[i + 1].kind === 'estimate'))).attr('fill', 'none').attr('stroke-width', 2).attr('stroke-dasharray', '4 3').style('stroke', pzColor(1)).attr('d', line);
+    g.append('g').selectAll('path').data(data.filter((d) => evBy.has(d.ym))).join('path')
+      .attr('d', d3.symbol(d3.symbolDiamond, 34)).attr('transform', (d) => `translate(${x(d.ym) + x.bandwidth() / 2},${H - mg.b - 6})`)
+      .style('fill', 'var(--color-warn)');
+    const last = data[data.length - 1];
+    const lastAct = [...data].reverse().find((d) => d.kind === 'actual');
+    g.append('circle').attr('r', 4).attr('cx', x(lastAct.ym) + x.bandwidth() / 2).attr('cy', y2(lastAct.opm)).style('fill', pzColor(1));
+    const hl = g.append('rect').attr('y', mg.t).attr('height', H - mg.t - mg.b).attr('width', x.step()).style('fill', 'var(--cds-chart-grid)').style('opacity', 0).attr('pointer-events', 'none');
+    g.append('g').selectAll('rect').data(data).join('rect')
+      .attr('x', (d) => x(d.ym) - x.step() * x.paddingInner() / 2).attr('width', x.step()).attr('y', mg.t).attr('height', H - mg.t - mg.b)
+      .style('fill', 'transparent')
+      .on('pointermove', (event, d) => {
+        hl.attr('x', x(d.ym) - x.step() * x.paddingInner() / 2).style('opacity', 0.35);
+        const [px, py] = d3.pointer(event, el);
+        const lines = [['t', d.ym + (d.kind === 'estimate' ? ' (추정)' : '')], ['', `매출 ${d3.format(',.2f')(d.sales_eok)}억원`], ['', `영업이익률 ${d3.format('.1f')(d.opm)}%`]];
+        for (const e of (evBy.get(d.ym) || [])) lines.push(['m', `◆ ${e.store === '전 매장·본사' ? '' : e.store + ' · '}${e.title}`]);
+        tip.show(lines, px, py);
+      })
+      .on('pointerleave', () => { hl.style('opacity', 0); tip.hide(); });
+    if (made.first && data.length && window.matchMedia('(prefers-reduced-motion: no-preference)').matches) {
+      made.first = false;
+      bars.attr('y', y(0)).attr('height', 0).transition().duration(600).delay((d, i) => i * 4).attr('y', (d) => y(d.sales_eok)).attr('height', (d) => y(0) - y(d.sales_eok));
+    }
+  },
+});
+</script>
+
+<script>
+// 비용 구조
+const COST_KEYS = [['food', '식자재'], ['labor', '인건비'], ['rent', '임차료'], ['platform', '플랫폼 수수료'], ['royalty_ad', '로열티·광고'], ['other', '기타'], ['profit', '영업이익']];
+dash.draw('costlegend', (el) => {
+  el.replaceChildren(...COST_KEYS.map(([k, label], i) => {
+    const li = document.createElement('li'); const sw = document.createElement('i'); sw.className = 'pz-sw';
+    sw.style.background = k === 'profit' ? 'var(--color-fg)' : k === 'other' ? 'var(--cds-chart-muted)' : pzColor(i);
+    li.append(sw, document.createTextNode(label)); return li;
+  }));
+});
+dash.draw('costs', {
+  mount(el) { return { tip: pzTip(el) }; },
+  update(el, { tip }) {
+    const c = dash.data('costs');
+    el.querySelectorAll(':scope > .pz-srow2, :scope > .pz-err').forEach((n) => n.remove());
+    if (c.status !== 'ok') { if (c.status === 'error') { const p = document.createElement('p'); p.className = 'pz-err'; p.textContent = '데이터를 불러오지 못했습니다.'; el.prepend(p); } return; }
+    const rows = c.data.map((r) => {
+      const row = document.createElement('div'); row.className = 'pz-srow2';
+      const yr = document.createElement('span'); yr.className = 'pz-yr'; yr.textContent = r.year === '2026' ? '2026 1~8' : r.year;
+      const bar = document.createElement('div'); bar.className = 'pz-bar';
+      bar.setAttribute('role', 'img'); bar.setAttribute('aria-label', `${r.year}년 ` + COST_KEYS.map(([k, l]) => `${l} ${r[k]}%`).join(', '));
+      COST_KEYS.forEach(([k, label], i) => {
+        const seg = document.createElement('span'); seg.className = 'pz-seg';
+        seg.style.width = Math.max(0, r[k]) + '%';
+        seg.style.background = k === 'profit' ? 'var(--color-fg)' : k === 'other' ? 'var(--cds-chart-muted)' : pzColor(i);
+        seg.dataset.source = 'costs'; seg.dataset.field = k; seg.dataset.where = 'year=' + r.year;
+        seg.textContent = r[k] >= 6 ? d3.format('.1f')(r[k]) : '';
+        seg.onpointermove = (e) => { const [px, py] = d3.pointer(e, el); tip.show([['t', `${yr.textContent} · ${label}`], ['', `매출 대비 ${d3.format('.1f')(r[k])}%`]], px, py); };
+        seg.onpointerleave = () => tip.hide();
+        bar.appendChild(seg);
+      });
+      row.append(yr, bar); return row;
+    });
+    el.prepend(...rows);
+  },
+});
+</script>
+
+<script>
+// 채널 비중
+dash.draw('channel', {
+  mount(el) {
+    const svg = d3.select(el).append('svg').attr('role', 'img').attr('aria-label', '연도별 자사앱·외부 배달앱·홀 주문 비중');
+    return { svg, tip: pzTip(el) };
+  },
+  update(el, { svg, tip }) {
+    const c = dash.data('channel');
+    if (c.status !== 'ok') { svg.selectAll('*').remove(); return; }
+    const data = c.data;
+    const W = el.clientWidth, H = 240, mg = { t: 14, r: 48, b: 26, l: 34 };
+    svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+    svg.selectAll('*').remove();
+    const x = d3.scalePoint().domain(data.map((d) => d.year)).range([mg.l, W - mg.r]).padding(0.2);
+    const y = d3.scaleLinear().domain([0, 60]).range([H - mg.b, mg.t]);
+    svg.append('g').attr('transform', `translate(${mg.l},0)`).call(d3.axisLeft(y).ticks(4).tickSize(-(W - mg.l - mg.r)).tickFormat((v) => v + '%')).call((a) => a.select('.domain').remove()).call((a) => a.selectAll('.tick line').attr('stroke-opacity', 0.6));
+    svg.append('g').attr('transform', `translate(0,${H - mg.b})`).call(d3.axisBottom(x).tickFormat((v) => (W < 420 ? "'" + v.slice(2) : v)).tickSizeOuter(0));
+    const series = [['app', '자사앱'], ['ext', '외부앱'], ['hall', '홀']];
+    series.forEach(([k, label], i) => {
+      const line = d3.line().x((d) => x(d.year)).y((d) => y(d[k]));
+      svg.append('path').datum(data).attr('fill', 'none').attr('stroke-width', 2.2).style('stroke', pzColor(i)).attr('d', line);
+      svg.append('g').selectAll('circle').data(data).join('circle').attr('r', (d, j) => (j === data.length - 1 ? 4 : 2.5)).attr('cx', (d) => x(d.year)).attr('cy', (d) => y(d[k])).style('fill', pzColor(i));
+      const l = data[data.length - 1];
+      svg.append('text').attr('class', 'pz-axis-lab').attr('x', x(l.year) + 8).attr('y', y(l[k]) + 4).text(d3.format('.1f')(l[k]) + '%');
+    });
+    svg.append('g').selectAll('rect').data(data).join('rect')
+      .attr('x', (d) => x(d.year) - x.step() / 2).attr('width', x.step()).attr('y', mg.t).attr('height', H - mg.t - mg.b).style('fill', 'transparent')
+      .on('pointermove', (event, d) => { const [px, py] = d3.pointer(event, el); tip.show([['t', d.year === '2026' ? '2026년 1~8월' : d.year + '년'], ['', `자사앱 ${d.app}%`], ['', `외부 배달앱 ${d.ext}%`], ['', `홀 ${d.hall}%`]], px, py); })
+      .on('pointerleave', () => tip.hide());
+  },
+});
+</script>
+
+<script>
+// 사건 목록
+dash.draw('events', (el) => {
+  const ev = dash.data('events');
+  if (ev.status !== 'ok') { pzFail(el, ev); return; }
+  const code = pick();
+  const rows = ev.data.filter((e) => !code || e.store_code === code || e.store_code === 'ALL')
+    .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
+  el.replaceChildren(...rows.map((e) => {
+    const r = document.createElement('div'); r.className = 'pz-ev';
+    const mk = (cls, txt, field) => { const s = document.createElement('span'); s.className = cls; s.textContent = txt; if (field) { s.dataset.source = 'events'; s.dataset.field = field; s.dataset.where = 'id=' + e.id; } return s; };
+    const ok = String(e.status).startsWith('확인');
+    r.append(mk('d', e.date, 'date'), mk('s', e.store, 'store'), mk('ty', e.type, 'type'), mk('ti', e.title, 'title'), mk('st ' + (ok ? 'ok' : 'warn'), ok ? '확인' : e.status.replace('(데이터로 검증 필요)', ''), 'status'));
+    return r;
+  }));
+});
+</script>
